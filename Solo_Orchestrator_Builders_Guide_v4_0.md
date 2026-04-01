@@ -13,12 +13,12 @@
 | **Classification** | Technical Implementation Manual |
 | **Date** | 2026-04-01 |
 | **Audience** | Solo Orchestrator (technologist executing the framework) |
-| **Companion Documents** | SOI-003-GOV v1.1 — Enterprise Governance Framework |
-| | SOI-004-INTAKE v1.0 — Project Intake Template |
+| **Companion Documents** | SOI-003-GOV v1.2 — Enterprise Governance Framework |
+| | SOI-004-INTAKE v1.1 — Project Intake Template |
 | | SOI-005-CLI v1.0 — Claude Code CLI Setup Addendum |
 | **Platform Modules** | SOI-PM-WEB v1.0 — Web Applications |
 | | SOI-PM-DESKTOP v1.0 — Desktop Applications (Standalone & Client-Server) |
-| | SOI-PM-MOBILE v1.0 — Mobile Applications |
+| | SOI-PM-MOBILE v0.1 — Mobile Applications (Stub) |
 
 ---
 
@@ -607,6 +607,14 @@ Synthesize all Phase 1 outputs into `PROJECT_BIBLE.md`:
 
 The primary risk is **Code Drift** — AI generates code that deviates from the Bible. The secondary risk is **Context Window Bleed** — AI loses track of prior decisions as the codebase grows.
 
+### Execution Engine: Superpowers
+
+If the Superpowers plugin is installed (see CLI Setup Addendum, Section 1), it serves as the execution engine for Phase 2. Superpowers' skills — `test-driven-development`, `subagent-driven-development`, `writing-plans`, `systematic-debugging`, `using-git-worktrees` — activate automatically during construction. The Build Loop below defines what must happen per feature; Superpowers provides the agent's methodology for how to execute each step.
+
+**With Superpowers:** The agent will use subagent-driven development (spawning focused subagents per task with two-stage review), enforce strict TDD (RED-GREEN-REFACTOR, no code before failing test), and manage feature branches via git worktrees. The Orchestrator's role shifts from directing each step to reviewing at decision gates and validating the agent's self-review output.
+
+**Without Superpowers:** The Build Loop below works as written — the agent executes sequentially with the Orchestrator directing each step. Superpowers is recommended but not required.
+
 ---
 
 ### Project Initialization
@@ -1117,4 +1125,4 @@ Direct the agent to generate `HANDOFF.md`:
 | 2.0 | 2026-03-31 | Complete restructure as self-contained manual. Absorbed SOPs, remediation tables, right-sizing, glossary. |
 | 3.0 | 2026-03-31 | Split into Builder's Guide and Enterprise Governance Framework. Added Phase 2 checkpoint, CSP guidance, API contract testing, load testing, secrets rotation, AI caution areas. |
 | 3.1 | 2026-03-31 | Intake Template integration. Dual-path prompts. Project Bible expanded. |
-| 4.0 | 2026-04-01 | Platform-agnostic restructure. All platform-specific content extracted into modular Platform Modules (Web, Desktop, Mobile). Core guide now covers methodology only. Platform Module callout system (`⟁ PLATFORM MODULE`) replaces inline platform-specific instructions. Architecture, tooling, testing, deployment, and maintenance guidance is now platform-dependent and referenced from modules. Wider hour/timeline ranges to span platform complexity. New remediation entries for cross-platform issues. Glossary updated with Platform Module definition. |
+| 4.0 | 2026-04-01 | Platform-agnostic restructure. All platform-specific content extracted into modular Platform Modules (Web, Desktop, Mobile). Core guide covers methodology only. Platform Module callout system. Wider hour/timeline ranges. New remediation entries for cross-platform issues. Superpowers plugin referenced as the Phase 2 execution engine (subagent-driven development, TDD enforcement, git worktrees). |

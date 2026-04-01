@@ -1,6 +1,6 @@
 # Solo Orchestrator — Claude Code CLI Setup Addendum
 
-## Version 1.0
+## Version 1.1
 
 ---
 
@@ -9,21 +9,22 @@
 | Field | Value |
 |---|---|
 | **Document ID** | SOI-005-CLI |
-| **Version** | 1.0 |
+| **Version** | 1.1 |
 | **Classification** | Technical Configuration Guide |
 | **Date** | 2026-04-01 |
 | **Audience** | Solo Orchestrator using Claude Code CLI |
-| **Companion Documents** | SOI-002-BUILD v3.1 (Builder's Guide), SOI-004-INTAKE v1.0 (Project Intake Template) |
+| **Companion Documents** | SOI-002-BUILD v4.0 (Builder's Guide), SOI-004-INTAKE v1.1 (Project Intake Template) |
 
 ---
 
 ## Purpose
 
-The Builder's Guide (SOI-002-BUILD) defines the methodology. This addendum configures the Claude Code CLI to execute that methodology with maximum autonomy. It covers five capabilities that the Builder's Guide references or assumes but doesn't set up:
+The Builder's Guide (SOI-002-BUILD) defines the methodology. This addendum configures the Claude Code CLI to execute that methodology with maximum autonomy. It covers six capabilities that the Builder's Guide references or assumes but doesn't set up:
 
 | Capability | What It Does | Why the Builder's Guide Needs It |
 |---|---|---|
-| **Auto Mode** | Reduces permission interruptions so the agent can work through multi-step tasks without stopping | The Builder's Guide assumes the agent can execute Build Loop cycles (test → implement → audit → document) without pausing for permission on every file write and command |
+| **Superpowers** | Agentic skills framework providing TDD enforcement, subagent-driven development, systematic debugging, code review, and git worktree management | The Builder's Guide defines the Build Loop (test → implement → audit → document); Superpowers provides the execution engine that makes the agent enforce TDD, spawn focused subagents per task, and self-review before presenting to the Orchestrator |
+| **Auto Mode** | Reduces permission interruptions so the agent can work through multi-step tasks without stopping | The Builder's Guide assumes the agent can execute Build Loop cycles without pausing for permission on every file write and command |
 | **Claude Dev Framework** | Mechanically enforces coding standards, security scanning, and documentation through Git hooks | The Builder's Guide defines what should happen (TDD, security audits, documentation); the framework enforces that it does |
 | **Context7 MCP** | Provides the agent with up-to-date library documentation during architecture selection and construction | The Builder's Guide mentions Context7 in Phase 1 but doesn't fully configure it for CLI use |
 | **Qdrant MCP** | Gives the agent persistent semantic memory across sessions — stores and retrieves project decisions, patterns, and context | The Builder's Guide's Context Health Check (every 3-4 features) relies on the agent maintaining awareness of prior decisions; Qdrant makes this durable across session boundaries |
@@ -33,7 +34,71 @@ The Builder's Guide (SOI-002-BUILD) defines the methodology. This addendum confi
 
 ---
 
-## 1. Auto Mode (Permission Management)
+## 1. Superpowers (Agentic Skills Framework)
+
+### What It Is
+
+Superpowers (github.com/obra/superpowers) is a composable skills framework for coding agents. It installs as a Claude Code plugin and provides a set of skills that activate automatically based on context — the agent doesn't need to be told to use them, they fire when relevant.
+
+Core skills:
+
+- **brainstorming** — Socratic design refinement before writing code. Asks clarifying questions, explores alternatives, presents design in digestible sections for validation.
+- **writing-plans** — Breaks approved designs into granular tasks (2-5 minutes each) with exact file paths, complete code specifications, and verification steps.
+- **subagent-driven-development** — Spawns a fresh subagent per task with a two-stage review: first spec compliance, then code quality. The main agent orchestrates and reviews rather than doing everything sequentially.
+- **test-driven-development** — Enforces strict RED-GREEN-REFACTOR: write failing test, watch it fail, write minimal code to pass, commit. Deletes code written before tests exist.
+- **systematic-debugging** — 4-phase root cause process including root-cause-tracing, defense-in-depth, and condition-based-waiting techniques.
+- **requesting-code-review** / **receiving-code-review** — Structured review against the plan, with issues reported by severity. Critical issues block progress.
+- **using-git-worktrees** — Creates isolated workspaces on new branches for parallel development. Verifies clean test baseline before work begins.
+- **finishing-a-development-branch** — Verifies tests pass, presents merge/PR/keep/discard options, cleans up worktree.
+- **verification-before-completion** — Ensures fixes actually work before declaring success.
+
+### How It Applies to the Builder's Guide
+
+Superpowers is the **Phase 2 execution engine.** The Solo Orchestrator framework defines what to build (Phase 0 Manifesto, Phase 1 Bible) and how to validate it (Phase 3). Superpowers provides the methodology for how the agent actually constructs features within Phase 2.
+
+| Builder's Guide Phase 2 Step | Superpowers Skill | Interaction |
+|---|---|---|
+| **Build Loop: Write Tests First (2.2)** | `test-driven-development` | Superpowers enforces RED-GREEN-REFACTOR mechanically. The agent writes the failing test, verifies it fails, then implements. This is stricter than the Builder's Guide's "DECISION GATE — review test assertions" because Superpowers won't let the agent skip the cycle. |
+| **Build Loop: Implement Feature (2.3)** | `subagent-driven-development` + `writing-plans` | Superpowers breaks each feature into micro-tasks and dispatches subagents per task, with two-stage review. This is faster and more rigorous than the single-agent sequential approach in the base Builder's Guide. |
+| **Build Loop: Security & Quality Audit (2.4)** | `requesting-code-review` | Superpowers runs a structured review against the plan before presenting to the Orchestrator. The Orchestrator still reviews, but the agent has already caught spec-compliance and code-quality issues. |
+| **Context Health Check** | `verification-before-completion` | Superpowers' verification skill ensures the agent proves things work rather than just claiming they do. |
+| **Debugging** | `systematic-debugging` | When something breaks during construction, the agent follows a structured 4-phase root cause process instead of randomly trying fixes. |
+| **Not in base Builder's Guide** | `using-git-worktrees` | Superpowers adds parallel development on isolated branches — features are built in worktrees and merged when complete. This is an upgrade over the base Builder's Guide's linear approach. |
+
+### Important: Managing Overlap with Phase 0/1
+
+Superpowers' **brainstorming** skill activates automatically when it detects the agent is starting something new. If Phase 0 and Phase 1 are already complete (Product Manifesto and Project Bible exist), the brainstorming skill will try to re-discover requirements that are already defined. **The CLAUDE.md must instruct the agent to constrain brainstorming:**
+
+- Use Superpowers' brainstorming for **implementation-level design decisions within a feature** (e.g., "how should we structure this component?" or "what's the best data structure for this?").
+- Do **not** use brainstorming for **product-level decisions** — those are governed by the Product Manifesto.
+- Do **not** use brainstorming to reconsider **architecture decisions** — those are governed by the Project Bible.
+- When Superpowers' `writing-plans` skill generates a plan for a feature, the plan must align with the MVP Cutline. If the plan includes tasks for features not in the Cutline, reject them.
+
+This constraint is included in the CLAUDE.md template in Section 6.
+
+### Setup
+
+**Install via the Claude Code plugin marketplace:**
+```
+/plugin install superpowers@claude-plugins-official
+```
+
+**Or via the community marketplace:**
+```
+/plugin marketplace add obra/superpowers-marketplace
+/plugin install superpowers@superpowers-marketplace
+```
+
+**Verify installation:** Start a new session and ask the agent to help plan a feature. It should automatically invoke the brainstorming skill rather than jumping straight to code.
+
+**Update:**
+```
+/plugin update superpowers
+```
+
+---
+
+## 2. Auto Mode (Permission Management)
 
 ### What It Is
 
@@ -99,7 +164,7 @@ Place this in `.claude/settings.json` (project-level, shared with team) or `.cla
 
 ---
 
-## 2. Claude Dev Framework (Compliance Enforcement)
+## 3. Claude Dev Framework (Compliance Enforcement)
 
 ### What It Is
 
@@ -160,7 +225,7 @@ git commit -m "test: verify framework hooks"
 
 ---
 
-## 3. Context7 MCP (Live Library Documentation)
+## 4. Context7 MCP (Live Library Documentation)
 
 ### What It Is
 
@@ -190,11 +255,11 @@ claude /mcp
 ```
 You should see `context7` listed as a connected server.
 
-**How the agent uses it:** When the agent needs documentation for a library (e.g., "What's the current Prisma migration API?"), it can query Context7 rather than relying on training data. The CLAUDE.md template (Section 5 below) includes instructions for the agent to use Context7 when making implementation decisions involving specific library APIs.
+**How the agent uses it:** When the agent needs documentation for a library (e.g., "What's the current Prisma migration API?"), it can query Context7 rather than relying on training data. The CLAUDE.md template (Section 6 below) includes instructions for the agent to use Context7 when making implementation decisions involving specific library APIs.
 
 ---
 
-## 4. Qdrant MCP (Persistent Semantic Memory)
+## 5. Qdrant MCP (Persistent Semantic Memory)
 
 ### What It Is
 
@@ -267,7 +332,7 @@ For multiple Solo Orchestrator projects, use project-specific collection names t
 
 ### What the Agent Should Store
 
-The CLAUDE.md template (Section 5) instructs the agent on when to use Qdrant. Key storage triggers:
+The CLAUDE.md template (Section 6) instructs the agent on when to use Qdrant. Key storage triggers:
 
 - **After each feature completion (Phase 2):** Store a summary of the feature, key implementation decisions, any non-obvious patterns used, and debugging insights.
 - **After each Phase gate:** Store the phase transition context (what was approved, what concerns were raised, what changed from the plan).
@@ -283,7 +348,7 @@ The CLAUDE.md template (Section 5) instructs the agent on when to use Qdrant. Ke
 
 ---
 
-## 5. CLAUDE.md (Project-Level Agent Instructions)
+## 6. CLAUDE.md (Project-Level Agent Instructions)
 
 ### What It Is
 
@@ -340,6 +405,34 @@ Intake, Bible, or prior context.
 Update this section at the end of every session.
 
 ## Tool Usage
+
+### Superpowers (Agentic Skills Framework)
+Superpowers skills activate automatically. Follow their workflows
+when they trigger, with these constraints:
+
+**Brainstorming skill:** Use ONLY for implementation-level design
+decisions within a feature (component structure, data structures,
+algorithm selection). Do NOT use brainstorming to reconsider
+product requirements (governed by Product Manifesto) or
+architecture decisions (governed by Project Bible). If the
+brainstorming skill suggests features not in the MVP Cutline,
+reject them.
+
+**Writing-plans skill:** Plans must align with the MVP Cutline.
+If a generated plan includes tasks for features outside the
+Cutline, remove those tasks before executing.
+
+**Subagent-driven-development:** Use for Phase 2 feature
+construction. Each subagent task must pass both review stages
+(spec compliance, then code quality) before merging.
+
+**Test-driven-development:** This skill enforces RED-GREEN-REFACTOR.
+Do not write implementation code before a failing test exists.
+Do not skip the "verify it fails" step.
+
+**Git worktrees:** Create a worktree for each feature. Verify
+clean test baseline before starting work. Use the
+finishing-a-development-branch skill to merge when complete.
 
 ### Context7 (Library Documentation)
 When making implementation decisions that depend on a specific
@@ -437,26 +530,29 @@ Keep it focused. Based on current best practices:
 
 ---
 
-## 6. Complete Setup Checklist
+## 7. Complete Setup Checklist
 
 Run this once per development machine:
 
 - [ ] Claude Code installed and authenticated (`npx @anthropic-ai/claude-code`)
+- [ ] Superpowers plugin installed (`/plugin install superpowers@claude-plugins-official`)
 - [ ] Auto Mode configured (or granular permissions in settings.json if Auto Mode unavailable)
 - [ ] Context7 MCP added (`claude mcp add context7 --scope user -- npx -y @upstash/context7-mcp`)
 - [ ] Qdrant running in Docker (`docker run -d --name qdrant -p 6333:6333 -v qdrant_data:/qdrant/storage qdrant/qdrant:latest`)
 - [ ] Qdrant MCP added (`claude mcp add qdrant --scope user -- uvx mcp-server-qdrant --qdrant-url http://localhost:6333 --collection-name solo-orchestrator`)
 - [ ] Claude Dev Framework cloned and available for project setup
 - [ ] Verify all MCP servers connected (`claude /mcp`)
+- [ ] Verify Superpowers active (start a session, ask to plan a feature — brainstorming skill should trigger)
 
 Run this once per project (during Phase 2 Project Initialization):
 
 - [ ] Copy CLAUDE.md template to project root
-- [ ] Customize CLAUDE.md with project identity and track
+- [ ] Customize CLAUDE.md with project identity, track, and Superpowers constraints
 - [ ] Install Claude Dev Framework hooks for this project
 - [ ] Configure project-specific Qdrant collection (if isolating from other projects)
 - [ ] Add `@` includes to CLAUDE.md for project documents as they're created
 - [ ] Verify hooks fire on test commit
+- [ ] Verify Superpowers skills trigger during first feature build
 
 ---
 
@@ -464,4 +560,5 @@ Run this once per project (during Phase 2 Project Initialization):
 
 | Version | Date | Changes |
 |---|---|---|
-| 1.0 | 2026-04-01 | Initial release. Covers Auto Mode (permission management), Claude Dev Framework (compliance enforcement), Context7 MCP (live documentation), Qdrant MCP (persistent semantic memory), and CLAUDE.md (project-level agent instructions with evolving template). |
+| 1.0 | 2026-04-01 | Initial release. Covers Auto Mode, Claude Dev Framework, Context7 MCP, Qdrant MCP, and CLAUDE.md template. |
+| 1.1 | 2026-04-01 | Added Superpowers agentic skills framework as Section 1. Superpowers provides Phase 2 execution engine: subagent-driven development, TDD enforcement, systematic debugging, code review, and git worktree management. CLAUDE.md template updated with Superpowers constraints (brainstorming scoped to implementation-level, plans aligned to MVP Cutline, worktree workflow). Companion doc references updated for Builder's Guide v4.0. Sections renumbered. Setup checklist updated. |
