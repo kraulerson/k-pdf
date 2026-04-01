@@ -4,7 +4,7 @@
 
 **Source:** FRD v1.0, User Journey Map v1.0, Data Contract v1.0, Project Intake v1.1
 **Generated:** 2026-04-01
-**Status:** Draft — Awaiting Orchestrator Review & Decision on Open Questions
+**Status:** Approved — Open Questions resolved 2026-04-01
 
 ---
 
@@ -47,6 +47,7 @@ These are capabilities required by the MVP features above. They are NOT separate
 | Text Copy to Clipboard | F6 (text selection) | Ctrl+C / Cmd+C copies selected text. Standard OS clipboard. |
 | File > Save As | F6, F7, F8, F9 | Save to a new path. Standard OS save dialog. |
 | Recent Files List | F1 (file open) | Most recent 20 files. Displayed on welcome screen and in File menu. Stale paths shown grayed with "File not found." |
+| Basic Printing | All features (expected capability) | File > Print opens OS native print dialog (QPrintDialog). Not a virtual printer driver — sends to system printer only. |
 
 ### 2.3 Post-MVP Backlog (v1.1+)
 
@@ -95,52 +96,16 @@ From Intake Section 4.3. **These are never built. Period.**
 
 ---
 
-## 5. Open Questions Requiring Orchestrator Decision
+## 5. Resolved Design Decisions
 
-These were identified during Steps 0.1–0.3 and require explicit decisions before Phase 1 begins.
+*Identified during Steps 0.1–0.3. Resolved by Orchestrator on 2026-04-01.*
 
-### OQ-1: Basic Printing
-
-**Question:** Is basic OS print dialog (File > Print → send to system printer) in scope for MVP?
-
-**Context:** The Intake excludes "virtual printer driver" (Will-Not-Have #1), which is a system-level print-to-PDF driver. But basic printing — sending the current document to the OS print dialog so it can be printed on a physical printer — is a different capability. Every PDF reader has it. The Intake does not mention it in MVP features or in Will-Not-Have.
-
-**Options:**
-- (A) Add basic printing to MVP as an implicit requirement (not a full feature). Implementation: File > Print opens the OS native print dialog. Qt/PySide6 has built-in print dialog support. Low implementation cost.
-- (B) Explicitly exclude basic printing from MVP. Add to Post-MVP Backlog.
-- (C) Explicitly add to Will-Not-Have list.
-
-**Recommendation:** Option A. Basic printing is trivial to implement with PySide6's QPrintDialog, is expected by any PDF reader user, and aligns with the "cover the 80% use case" product intent. Not adding it creates a noticeable gap.
-
-### OQ-2: Auto-Save / Crash Recovery
-
-**Question:** Should K-PDF auto-save to a temp file periodically, or is explicit-save-only acceptable for MVP?
-
-**Context:** The Intake does not mention auto-save. If the application crashes with unsaved changes (annotations, form fills, page edits), all work since last save is lost.
-
-**Options:**
-- (A) Implement auto-save: periodic save to a temp file (e.g., every 60 seconds while dirty). On next launch, detect recovery file and offer to restore.
-- (B) Explicit-save-only for MVP. Add auto-save to Post-MVP Backlog.
-
-**Recommendation:** Option B. Auto-save adds complexity (temp file management, recovery flow, potential corruption handling) that isn't justified for a single-user MVP. The Orchestrator is a power user who saves frequently. Revisit after MVP if crash-related data loss is observed.
-
-### OQ-3: Large File Strategy
-
-**Question:** For PDFs >100MB, should K-PDF accept full memory load with a progress indicator, or implement true streaming?
-
-**Context:** PyMuPDF loads the entire file into memory by default. The Orchestrator's machine has 96GB RAM (Corsair workstation), but the minimum spec (Ubuntu 22.04+, Windows 10+) could include machines with 4-8GB. A 200MB PDF in memory is manageable; a 1GB PDF is not.
-
-**Options:**
-- (A) Full memory load with progress indicator. Simple. Reliable. Works for 99% of real-world PDFs.
-- (B) Implement streaming/partial load using PyMuPDF's repair/stream features. More complex. Better for extreme edge cases.
-
-**Recommendation:** Option A. Full memory load is the simplest approach and covers the Orchestrator's actual use case. Add a warning dialog if the file size exceeds available memory (heuristic). Defer streaming to post-MVP if real-world large file issues are observed.
-
-### OQ-4: Undo/Redo Depth
-
-**Question:** Is 50 operations per tab an acceptable default undo depth?
-
-**Recommendation:** Yes. 50 is generous for annotation and page management operations. Configurable in post-MVP if needed.
+| # | Decision | Resolution | Impact |
+|---|---|---|---|
+| OQ-1 | Basic printing in MVP? | **Yes.** Added as implicit requirement (Section 2.2). File > Print opens OS native print dialog. | Added to implicit requirements table. |
+| OQ-2 | Auto-save / crash recovery? | **No.** Explicit-save-only for MVP. Auto-save deferred to Post-MVP Backlog. | No architectural impact. |
+| OQ-3 | Large file strategy? | **Full memory load** with progress indicator. No streaming in MVP. Warning dialog if file exceeds available memory heuristic. | Simplifies implementation. Streaming deferred to post-MVP if needed. |
+| OQ-4 | Undo/Redo depth? | **50 operations per tab.** | Confirmed as default. Configurable in post-MVP if needed. |
 
 ---
 
