@@ -1,9 +1,8 @@
 """Main application window.
 
 Three-panel layout (navigation | viewport | annotations) with
-menu bar, toolbar, status bar, and tab bar. For Feature 1, only
-the viewport center panel is active. Navigation and annotation
-panels are placeholders for Features 3 and 12.
+menu bar, toolbar, status bar, and tab bar. Uses QStackedWidget
+to switch between welcome screen (no tabs) and QTabWidget (tabs open).
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import override
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QAction, QDragEnterEvent, QDropEvent, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -21,13 +20,44 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMainWindow,
     QMessageBox,
+    QPushButton,
+    QStackedWidget,
     QStatusBar,
+    QTabWidget,
+    QVBoxLayout,
     QWidget,
 )
 
-from k_pdf.views.pdf_viewport import PdfViewport
-
 logger = logging.getLogger("k_pdf.views.main_window")
+
+
+class WelcomeWidget(QWidget):
+    """Welcome screen shown when no document is open."""
+
+    open_clicked = Signal()
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the welcome widget with title, subtitle, and open button."""
+        super().__init__(parent)
+        layout = QVBoxLayout(self)
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        title = QLabel("K-PDF")
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        font = title.font()
+        font.setPointSize(24)
+        font.setBold(True)
+        title.setFont(font)
+        layout.addWidget(title)
+
+        subtitle = QLabel("Free, offline PDF reader and editor")
+        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(subtitle)
+
+        open_btn = QPushButton("Open File")
+        open_btn.setFixedWidth(200)
+        open_btn.clicked.connect(self.open_clicked.emit)
+        layout.addWidget(open_btn, alignment=Qt.AlignmentFlag.AlignCenter)
 
 
 class MainWindow(QMainWindow):
@@ -35,18 +65,36 @@ class MainWindow(QMainWindow):
 
     file_open_requested = Signal(Path)
     password_submitted = Signal(Path, str)  # (path, password)
+    tab_close_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the main window with viewport, menus, and status bar."""
+        """Initialize the main window with stacked widget, menus, and status bar."""
         super().__init__(parent)
         self.setWindowTitle("K-PDF")
         self.setMinimumSize(800, 600)
         self.resize(1200, 800)
         self.setAcceptDrops(True)
 
-        # Central viewport (Task 2 will replace this with QStackedWidget + QTabWidget)
-        self.viewport = PdfViewport(self)
-        self.setCentralWidget(self.viewport)
+        # Welcome widget
+        self._welcome = WelcomeWidget(self)
+        self._welcome.open_clicked.connect(self._open_file_dialog)
+
+        # Tab widget
+        self._tab_widget = QTabWidget(self)
+        self._tab_widget.setTabsClosable(True)
+        self._tab_widget.setMovable(True)
+        self._tab_widget.setDocumentMode(True)
+        self._tab_widget.setElideMode(Qt.TextElideMode.ElideRight)
+        self._tab_widget.setStyleSheet(
+            "QTabBar::tab:selected { border-bottom: 2px solid palette(text); }"
+        )
+
+        # Stacked widget: page 0 = welcome, page 1 = tabs
+        self._stacked = QStackedWidget(self)
+        self._stacked.addWidget(self._welcome)
+        self._stacked.addWidget(self._tab_widget)
+        self._stacked.setCurrentIndex(0)
+        self.setCentralWidget(self._stacked)
 
         # Status bar
         self._status_bar = QStatusBar(self)
@@ -59,8 +107,18 @@ class MainWindow(QMainWindow):
         # Menus
         self._setup_menus()
 
+    @property
+    def stacked_widget(self) -> QStackedWidget:
+        """Return the stacked widget for external state control."""
+        return self._stacked
+
+    @property
+    def tab_widget(self) -> QTabWidget:
+        """Return the tab widget for TabManager to add/remove viewports."""
+        return self._tab_widget
+
     def _setup_menus(self) -> None:
-        """Create the menu bar with File > Open and File > Quit."""
+        """Create the menu bar with File > Open, Close Tab, and Quit."""
         menu_bar = self.menuBar()
 
         # File menu
@@ -70,6 +128,13 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._open_file_dialog)
         file_menu.addAction(open_action)
+
+        file_menu.addSeparator()
+
+        close_tab_action = QAction("Close &Tab", self)
+        close_tab_action.setShortcut(QKeySequence("Ctrl+W"))
+        close_tab_action.triggered.connect(self.tab_close_requested.emit)
+        file_menu.addAction(close_tab_action)
 
         file_menu.addSeparator()
 
@@ -112,6 +177,15 @@ class MainWindow(QMainWindow):
         )
         if ok and password:
             self.password_submitted.emit(path, password)
+
+    def show_tabs(self) -> None:
+        """Switch stacked widget to show the tab widget."""
+        self._stacked.setCurrentIndex(1)
+
+    def show_welcome(self) -> None:
+        """Switch stacked widget to show the welcome screen."""
+        self._stacked.setCurrentIndex(0)
+        self._page_label.setText("No document")
 
     def update_page_status(self, current: int, total: int) -> None:
         """Update the page indicator in the status bar.

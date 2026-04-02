@@ -9,7 +9,6 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from k_pdf.core.document_model import PageInfo
-from k_pdf.views.main_window import MainWindow
 from k_pdf.views.pdf_viewport import PdfViewport, ViewportState
 
 _app: QApplication | None = None
@@ -29,6 +28,11 @@ class TestPdfViewport:
         """Test viewport starts in EMPTY state."""
         viewport = PdfViewport()
         assert viewport.state == ViewportState.EMPTY
+
+    def test_viewport_has_no_welcome_widget(self) -> None:
+        """Test that PdfViewport does not have a welcome overlay."""
+        viewport = PdfViewport()
+        assert not hasattr(viewport, "welcome_widget")
 
     def test_set_loading_changes_state(self) -> None:
         """Test set_loading transitions to LOADING state."""
@@ -52,11 +56,6 @@ class TestPdfViewport:
         viewport.set_document(pages)
         assert viewport.state == ViewportState.SUCCESS
 
-    def test_viewport_has_no_welcome_widget(self) -> None:
-        """Test that PdfViewport does not have a welcome overlay."""
-        viewport = PdfViewport()
-        assert not hasattr(viewport, "welcome_widget")
-
     def test_set_page_pixmap_replaces_placeholder(self) -> None:
         """Test set_page_pixmap replaces the placeholder item."""
         viewport = PdfViewport()
@@ -72,21 +71,74 @@ class TestPdfViewport:
 
 
 class TestMainWindow:
-    """Tests for MainWindow signals and dialogs."""
+    """Tests for MainWindow with multi-tab support."""
+
+    def test_initial_state_shows_welcome(self) -> None:
+        """Test that MainWindow starts showing the welcome widget."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert window.stacked_widget.currentIndex() == 0
+
+    def test_tab_widget_is_configured(self) -> None:
+        """Test QTabWidget has closable, movable, document-mode tabs."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        tw = window.tab_widget
+        assert tw.tabsClosable() is True
+        assert tw.isMovable() is True
+        assert tw.documentMode() is True
+
+    def test_tab_close_requested_signal(self) -> None:
+        """Test that tab_close_requested signal exists and is emittable."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        spy = MagicMock()
+        window.tab_close_requested.connect(spy)
+        window.tab_close_requested.emit()
+        spy.assert_called_once()
 
     def test_file_open_requested_signal(self) -> None:
         """Test that file_open_requested signal can be emitted and received."""
+        from k_pdf.views.main_window import MainWindow
+
         window = MainWindow()
         spy = MagicMock()
         window.file_open_requested.connect(spy)
-
-        # Simulate emitting directly (dialog is modal, can't test via UI)
         window.file_open_requested.emit(Path("/tmp/test.pdf"))
-
         spy.assert_called_once_with(Path("/tmp/test.pdf"))
 
     def test_update_page_status(self) -> None:
         """Test status bar page label updates."""
+        from k_pdf.views.main_window import MainWindow
+
         window = MainWindow()
         window.update_page_status(3, 10)
         assert window._page_label.text() == "Page 3 of 10"
+
+    def test_welcome_open_button_exists(self) -> None:
+        """Test that WelcomeWidget open button is connected."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window._welcome, "open_clicked")
+
+    def test_show_tabs_switches_stacked_widget(self) -> None:
+        """Test show_tabs switches to tab widget page."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.show_tabs()
+        assert window.stacked_widget.currentIndex() == 1
+
+    def test_show_welcome_switches_stacked_widget(self) -> None:
+        """Test show_welcome switches back to welcome page."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.show_tabs()
+        window.show_welcome()
+        assert window.stacked_widget.currentIndex() == 0
+        assert window._page_label.text() == "No document"
