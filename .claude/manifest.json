@@ -1,0 +1,52 @@
+{
+  "frameworkVersion": "3.0.0",
+  "frameworkRepo": "kraulerson/claude-dev-framework",
+  "localClonePath": "~/.claude-dev-framework",
+  "lastSyncDate": "2026-04-02T00:00:00Z",
+  "profile": "desktop-app",
+  "profileInherits": ["_base"],
+  "files": {},
+  "activeRules": [
+    "evaluate-before-implement",
+    "plan-before-code",
+    "test-per-bugfix",
+    "test-strategy",
+    "naming-conventions",
+    "context-management",
+    "session-discipline",
+    "superpowers-workflow",
+    "verify-after-complete",
+    "plan-closure",
+    "version-bump",
+    "changelog-update",
+    "future-scalability"
+  ],
+  "activeHooks": [
+    "session-start",
+    "enforce-evaluate",
+    "enforce-superpowers",
+    "stop-checklist",
+    "pre-compact-reminder",
+    "skill-tracker",
+    "marker-guard",
+    "pre-commit-checks",
+    "branch-safety"
+  ],
+  "projectConfig": {
+    "_base": {
+      "sourceExtensions": [".py", ".qss"],
+      "protectedBranches": ["main"]
+    },
+    "branches": []
+  },
+  "discovery": {
+    "branch:main": {
+      "purpose": "Primary development branch",
+      "devOS": "macOS",
+      "targetPlatform": "Windows, macOS, Linux",
+      "buildTools": "uv, Nuitka, PySide6"
+    },
+    "discoveryDate": "2026-04-02",
+    "lastReviewDate": "2026-04-02"
+  }
+}
