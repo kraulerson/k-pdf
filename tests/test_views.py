@@ -1,4 +1,4 @@
-"""Integration tests for MainWindow and PdfViewport."""
+"""Integration tests for MainWindow, PdfViewport, and KPdfApp."""
 
 from __future__ import annotations
 
@@ -8,7 +8,9 @@ from unittest.mock import MagicMock
 from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 
+from k_pdf.app import KPdfApp
 from k_pdf.core.document_model import PageInfo
+from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.views.pdf_viewport import PdfViewport, ViewportState
 
 _app: QApplication | None = None
@@ -142,3 +144,37 @@ class TestMainWindow:
         window.show_welcome()
         assert window.stacked_widget.currentIndex() == 0
         assert window._page_label.text() == "No document"
+
+
+class TestKPdfAppIntegration:
+    """Tests for KPdfApp wiring with TabManager."""
+
+    def test_app_creates_tab_manager(self) -> None:
+        """Test that KPdfApp creates a TabManager instead of single presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert isinstance(kpdf.tab_manager, TabManager)
+        kpdf.shutdown()
+
+    def test_app_wires_file_open_to_tab_manager(self) -> None:
+        """Test that file_open_requested routes to TabManager.open_file."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        spy = MagicMock()
+        kpdf.tab_manager.open_file = spy  # type: ignore[method-assign]
+        kpdf.window.file_open_requested.emit(Path("/tmp/test.pdf"))
+        spy.assert_called_once_with(Path("/tmp/test.pdf"))
+        kpdf.shutdown()
+
+    def test_tab_count_zero_shows_welcome(self) -> None:
+        """Test that tab_count_changed(0) switches to welcome screen."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        kpdf.window.show_tabs()
+        assert kpdf.window.stacked_widget.currentIndex() == 1
+        kpdf.tab_manager.tab_count_changed.emit(0)
+        assert kpdf.window.stacked_widget.currentIndex() == 0
+        kpdf.shutdown()
