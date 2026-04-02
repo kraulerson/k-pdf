@@ -253,3 +253,50 @@ class TestTabManagerShutdown:
         for p in presenters:
             p.shutdown.assert_called_once()
         assert len(manager._tabs) == 0
+
+
+class TestTabManagerErrorHandling:
+    """Tests for TabManager error and password flows."""
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_load_failure_removes_tab(self, mock_presenter_cls: MagicMock) -> None:
+        """Test that a load error removes the empty Loading... tab."""
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent_files = MagicMock()
+        manager = TabManager(tab_widget=tab_widget, recent_files=recent_files)
+        error_spy = MagicMock()
+        manager.error_occurred.connect(error_spy)
+
+        manager.open_file(Path("/tmp/bad.pdf"))
+        session_id = next(iter(manager._tabs))
+
+        # Simulate load failure (resolved_path is still None)
+        manager._on_error(session_id, "Cannot open file", "File is corrupt")
+
+        assert tab_widget.count() == 0
+        assert len(manager._tabs) == 0
+        error_spy.assert_called_once_with("Cannot open file", "File is corrupt")
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_error_after_load_does_not_remove_tab(self, mock_presenter_cls: MagicMock) -> None:
+        """Test that an error after successful load does NOT remove the tab."""
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent_files = MagicMock()
+        manager = TabManager(tab_widget=tab_widget, recent_files=recent_files)
+
+        manager.open_file(Path("/tmp/test.pdf"))
+        session_id = next(iter(manager._tabs))
+        model = _make_model(Path("/tmp/test.pdf"))
+        manager._on_document_ready(session_id, model)
+
+        # Error after load (e.g., save failure) — tab should stay
+        manager._on_error(session_id, "Save error", "Cannot save")
+
+        assert tab_widget.count() == 1
+        assert len(manager._tabs) == 1
