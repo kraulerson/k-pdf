@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab Document Support)
-- **Features remaining:** Features 3-12 + 7 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 82% (threshold 65%)
-- **Last session summary:** Feature 2 complete — TabManager, QTabWidget-based multi-tab, per-tab presenter/viewport/thread, duplicate detection, 68 tests passing
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation)
+- **Features remaining:** Features 4-12 + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 85% (threshold 65%)
+- **Last session summary:** Feature 3 complete — NavigationPanel (QDockWidget), ThumbnailCache, OutlineService, NavigationPresenter, 99 tests passing
 
 Update this section at the end of every session.
 
