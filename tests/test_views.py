@@ -210,3 +210,13 @@ class TestKPdfAppIntegration:
         kpdf.tab_manager.tab_count_changed.emit(0)
         assert kpdf.window.stacked_widget.currentIndex() == 0
         kpdf.shutdown()
+
+    def test_app_creates_navigation_presenter(self) -> None:
+        """Test that KPdfApp creates a NavigationPresenter."""
+        from k_pdf.presenters.navigation_presenter import NavigationPresenter
+
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert isinstance(kpdf.navigation_presenter, NavigationPresenter)
+        kpdf.shutdown()

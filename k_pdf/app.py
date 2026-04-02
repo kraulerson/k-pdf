@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
+from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.views.main_window import MainWindow
 
@@ -38,6 +39,9 @@ class KPdfApp:
             tab_widget=self._window.tab_widget,
             recent_files=self._recent_files,
         )
+        self._nav_presenter = NavigationPresenter(
+            tab_manager=self._tab_manager,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -57,6 +61,11 @@ class KPdfApp:
         """Return the tab manager."""
         return self._tab_manager
 
+    @property
+    def navigation_presenter(self) -> NavigationPresenter:
+        """Return the navigation presenter."""
+        return self._nav_presenter
+
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
         # View → TabManager
@@ -70,6 +79,21 @@ class KPdfApp:
         self._tab_manager.status_message.connect(self._window.update_status_message)
         self._tab_manager.active_page_status.connect(self._window.update_page_status)
         self._tab_manager.tab_count_changed.connect(self._on_tab_count_changed)
+
+        # NavigationPresenter → NavigationPanel
+        nav = self._nav_presenter
+        panel = self._window.navigation_panel
+        nav.thumbnail_ready.connect(panel.add_thumbnail)
+        nav.outline_ready.connect(panel.set_outline)
+        nav.active_thumbnail_changed.connect(panel.set_current_page)
+
+        # NavigationPanel → NavigationPresenter
+        panel.thumbnail_clicked.connect(nav.navigate_to_page)
+        panel.outline_clicked.connect(nav.navigate_to_page)
+
+        # Clear panel on tab switch and when all tabs close
+        self._tab_manager.tab_switched.connect(lambda _: panel.clear())
+        self._tab_manager.tab_count_changed.connect(self._on_nav_tab_count)
 
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
@@ -95,6 +119,12 @@ class KPdfApp:
         if self._initial_file:
             self._tab_manager.open_file(Path(self._initial_file))
 
+    def _on_nav_tab_count(self, count: int) -> None:
+        """Clear navigation panel when all tabs close."""
+        if count == 0:
+            self._window.navigation_panel.clear()
+
     def shutdown(self) -> None:
         """Clean up resources before exit."""
+        self._nav_presenter.shutdown()
         self._tab_manager.shutdown()
