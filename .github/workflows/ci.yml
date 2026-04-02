@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff check
+        run: uv run ruff check .
+
+      - name: Ruff format check
+        run: uv run ruff format --check .
+
+      - name: Mypy strict
+        run: uv run mypy k_pdf/
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run tests with coverage
+        run: uv run pytest --cov=k_pdf --cov-report=term-missing --cov-fail-under=80
+
+  security:
+    name: Security Scans
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Semgrep SAST scan
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+
+      - name: pip-audit (dependency vulnerabilities)
+        run: uv run pip-audit
+
+      - name: pip-licenses (license compliance)
+        run: uv run pip-licenses --order=license
+
+      - name: Gitleaks (secret detection)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    name: Build (${{ matrix.os }})
+    needs: [lint, test, security]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11"
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Nuitka build (standalone)
+        run: >
+          uv run python -m nuitka
+          --standalone
+          --assume-yes-for-downloads
+          --output-dir=build
+          --nofollow-import-to=PySide6.QtWebEngine
+          --nofollow-import-to=PySide6.Qt3D*
+          --nofollow-import-to=PySide6.QtMultimedia
+          --nofollow-import-to=PySide6.QtRemoteObjects
+          --nofollow-import-to=PySide6.QtBluetooth
+          --nofollow-import-to=PySide6.QtNfc
+          --nofollow-import-to=PySide6.QtSensors
+          --nofollow-import-to=PySide6.QtSerialPort
+          --nofollow-import-to=PySide6.QtTest
+          k_pdf/main.py
+        timeout-minutes: 30
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: k-pdf-${{ matrix.os }}
+          path: build/
+          retention-days: 7

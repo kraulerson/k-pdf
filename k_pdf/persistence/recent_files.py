@@ -1,0 +1,1 @@
+"""Recent files tracking."""
