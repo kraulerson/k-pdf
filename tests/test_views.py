@@ -88,6 +88,75 @@ class TestPdfViewport:
         spy = MagicMock()
         viewport.current_page_changed.connect(spy)
 
+    def test_add_search_highlights(self) -> None:
+        """Test adding search highlight overlays to a page."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_search_highlights(0, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
+        assert len(viewport._search_highlights) == 1
+
+    def test_add_search_highlights_multiple_rects(self) -> None:
+        """Test adding multiple highlight rects on one page."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        rects = [(10.0, 20.0, 100.0, 40.0), (50.0, 60.0, 150.0, 80.0)]
+        viewport.add_search_highlights(0, rects, zoom=1.0)
+        assert len(viewport._search_highlights) == 2
+
+    def test_clear_search_highlights(self) -> None:
+        """Test clearing all search highlights."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_search_highlights(0, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
+        assert len(viewport._search_highlights) == 1
+        viewport.clear_search_highlights()
+        assert len(viewport._search_highlights) == 0
+
+    def test_set_current_highlight(self) -> None:
+        """Test setting the current match highlight."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_search_highlights(0, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
+        # Should not raise — sets a distinct highlight
+        viewport.set_current_highlight(0, (10.0, 20.0, 100.0, 40.0), zoom=1.0)
+        # Current highlight item is tracked separately
+        assert viewport._current_highlight is not None
+
+    def test_clear_removes_current_highlight(self) -> None:
+        """Test that clear also removes the current highlight."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_search_highlights(0, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
+        viewport.set_current_highlight(0, (10.0, 20.0, 100.0, 40.0), zoom=1.0)
+        viewport.clear_search_highlights()
+        assert viewport._current_highlight is None
+        assert len(viewport._search_highlights) == 0
+
+    def test_highlights_on_invalid_page_ignored(self) -> None:
+        """Test that highlights on a non-existent page are silently ignored."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_search_highlights(5, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
+        assert len(viewport._search_highlights) == 0
+
 
 class TestMainWindow:
     """Tests for MainWindow with multi-tab support."""

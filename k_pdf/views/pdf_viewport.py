@@ -11,7 +11,7 @@ import logging
 from enum import Enum, auto
 
 from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsRectItem,
@@ -61,6 +61,8 @@ class PdfViewport(QGraphicsView):
         self._page_items: dict[int, QGraphicsPixmapItem | QGraphicsRectItem] = {}
         self._page_y_offsets: list[float] = []
         self._current_page: int = -1
+        self._search_highlights: list[QGraphicsRectItem] = []
+        self._current_highlight: QGraphicsRectItem | None = None
 
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -199,6 +201,99 @@ class PdfViewport(QGraphicsView):
             return
         y = self._page_y_offsets[page_index]
         self.verticalScrollBar().setValue(int(y))
+
+    def add_search_highlights(
+        self,
+        page_index: int,
+        rects: list[tuple[float, float, float, float]],
+        zoom: float,
+    ) -> None:
+        """Add semi-transparent highlight overlays for search matches on a page.
+
+        Creates QGraphicsRectItems with visible fill and border at the
+        specified rect positions. Highlights are non-destructive overlays
+        on the existing scene.
+
+        Args:
+            page_index: 0-based page index.
+            rects: List of (x0, y0, x1, y1) bounding boxes in page coordinates.
+            zoom: Current zoom factor applied to coordinates.
+        """
+        if page_index < 0 or page_index >= len(self._page_y_offsets):
+            return
+
+        y_base = self._page_y_offsets[page_index]
+        pen = QPen(QColor(0, 0, 0, 180))
+        pen.setWidthF(1.0)
+        brush = QBrush(QColor(255, 200, 0, 80))
+
+        for x0, y0, x1, y1 in rects:
+            sx0 = x0 * zoom
+            sy0 = y0 * zoom
+            sw = (x1 - x0) * zoom
+            sh = (y1 - y0) * zoom
+            rect_item = self._scene.addRect(
+                QRectF(0, 0, sw, sh),
+                pen=pen,
+                brush=brush,
+            )
+            rect_item.setPos(sx0, y_base + sy0)
+            rect_item.setZValue(10)
+            self._search_highlights.append(rect_item)
+
+    def set_current_highlight(
+        self,
+        page_index: int,
+        rect: tuple[float, float, float, float],
+        zoom: float,
+    ) -> None:
+        """Mark one match as the current highlight with a thicker border.
+
+        Removes any previous current-highlight overlay and creates
+        a new one with a distinct, thicker pen.
+
+        Args:
+            page_index: 0-based page index.
+            rect: (x0, y0, x1, y1) bounding box in page coordinates.
+            zoom: Current zoom factor applied to coordinates.
+        """
+        # Remove previous current highlight
+        if self._current_highlight is not None:
+            self._scene.removeItem(self._current_highlight)
+            self._current_highlight = None
+
+        if page_index < 0 or page_index >= len(self._page_y_offsets):
+            return
+
+        y_base = self._page_y_offsets[page_index]
+        x0, y0, x1, y1 = rect
+        sx0 = x0 * zoom
+        sy0 = y0 * zoom
+        sw = (x1 - x0) * zoom
+        sh = (y1 - y0) * zoom
+
+        pen = QPen(QColor(0, 0, 0, 255))
+        pen.setWidthF(3.0)
+        brush = QBrush(QColor(255, 150, 0, 120))
+
+        current_item = self._scene.addRect(
+            QRectF(0, 0, sw, sh),
+            pen=pen,
+            brush=brush,
+        )
+        current_item.setPos(sx0, y_base + sy0)
+        current_item.setZValue(11)
+        self._current_highlight = current_item
+
+    def clear_search_highlights(self) -> None:
+        """Remove all search highlight overlays from the scene."""
+        for item in self._search_highlights:
+            self._scene.removeItem(item)
+        self._search_highlights.clear()
+
+        if self._current_highlight is not None:
+            self._scene.removeItem(self._current_highlight)
+            self._current_highlight = None
 
     def get_visible_page_range(self) -> tuple[int, int]:
         """Calculate which pages are currently visible plus 1-page buffer.
