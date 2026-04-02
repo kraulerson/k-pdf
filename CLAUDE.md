@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation)
-- **Features remaining:** Features 4-12 + 7 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 85% (threshold 65%)
-- **Last session summary:** Feature 3 complete — NavigationPanel (QDockWidget), ThumbnailCache, OutlineService, NavigationPresenter, 99 tests passing
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search)
+- **Features remaining:** Features 5-12 + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 65%+ (threshold 65%)
+- **Last session summary:** Feature 4 complete — SearchBar, SearchWorker, SearchPresenter, highlight overlays, per-tab search state, Ctrl+F activation
 
 Update this section at the end of every session.
 
