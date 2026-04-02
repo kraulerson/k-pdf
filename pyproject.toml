@@ -85,6 +85,10 @@ module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_
 disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
+module = ["k_pdf.presenters.document_presenter"]
+disable_error_code = ["misc", "untyped-decorator"]
+
+[[tool.mypy.overrides]]
 module = ["PySide6", "PySide6.*"]
 ignore_missing_imports = true
 
