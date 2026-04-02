@@ -81,7 +81,7 @@ module = ["k_pdf.services.pdf_engine"]
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
-module = ["k_pdf.core.event_bus"]
+module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport"]
 disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
