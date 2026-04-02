@@ -89,6 +89,10 @@ module = ["k_pdf.presenters.document_presenter"]
 disable_error_code = ["misc", "untyped-decorator"]
 
 [[tool.mypy.overrides]]
+module = ["k_pdf.presenters.tab_manager"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
 module = ["PySide6", "PySide6.*"]
 ignore_missing_imports = true
 
