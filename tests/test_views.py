@@ -324,3 +324,24 @@ class TestKPdfAppIntegration:
         kpdf = KPdfApp(app_instance)
         assert isinstance(kpdf.navigation_presenter, NavigationPresenter)
         kpdf.shutdown()
+
+    def test_app_creates_search_presenter(self) -> None:
+        """Test that KPdfApp creates a SearchPresenter."""
+        from k_pdf.presenters.search_presenter import SearchPresenter
+
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert isinstance(kpdf.search_presenter, SearchPresenter)
+        kpdf.shutdown()
+
+    def test_search_bar_search_requested_reaches_presenter(self) -> None:
+        """Test that search bar's search_requested connects to presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        spy = MagicMock()
+        kpdf.search_presenter.start_search = spy  # type: ignore[method-assign]
+        kpdf.window.search_bar.search_requested.emit("hello", False, False)
+        spy.assert_called_once_with("hello", case_sensitive=False, whole_word=False)
+        kpdf.shutdown()

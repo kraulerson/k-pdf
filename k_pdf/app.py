@@ -15,6 +15,7 @@ from PySide6.QtWidgets import QApplication
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
+from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.views.main_window import MainWindow
 
@@ -42,6 +43,9 @@ class KPdfApp:
         self._nav_presenter = NavigationPresenter(
             tab_manager=self._tab_manager,
         )
+        self._search_presenter = SearchPresenter(
+            tab_manager=self._tab_manager,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -65,6 +69,11 @@ class KPdfApp:
     def navigation_presenter(self) -> NavigationPresenter:
         """Return the navigation presenter."""
         return self._nav_presenter
+
+    @property
+    def search_presenter(self) -> SearchPresenter:
+        """Return the search presenter."""
+        return self._search_presenter
 
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
@@ -95,6 +104,26 @@ class KPdfApp:
         self._tab_manager.tab_switched.connect(lambda _: panel.clear())
         self._tab_manager.tab_count_changed.connect(self._on_nav_tab_count)
 
+        # SearchBar -> SearchPresenter
+        search_bar = self._window.search_bar
+        search_bar.search_requested.connect(
+            lambda q, cs, ww: self._search_presenter.start_search(
+                q, case_sensitive=cs, whole_word=ww
+            )
+        )
+        search_bar.next_requested.connect(self._search_presenter.next_match)
+        search_bar.previous_requested.connect(self._search_presenter.previous_match)
+        search_bar.closed.connect(self._search_presenter.close_search)
+
+        # SearchPresenter -> SearchBar
+        sp = self._search_presenter
+        sp.matches_updated.connect(search_bar.set_match_count)
+        sp.no_text_layer.connect(search_bar.set_no_text_layer)
+
+        # SearchPresenter -> PdfViewport (highlight overlays)
+        sp.highlight_page.connect(self._on_search_highlight_page)
+        sp.clear_highlights.connect(self._on_search_clear_highlights)
+
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
         if count == 0:
@@ -124,7 +153,24 @@ class KPdfApp:
         if count == 0:
             self._window.navigation_panel.clear()
 
+    def _on_search_highlight_page(
+        self,
+        page_index: int,
+        rects: list[tuple[float, float, float, float]],
+    ) -> None:
+        """Route highlight overlay to the active viewport."""
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.add_search_highlights(page_index, rects, zoom=1.0)
+
+    def _on_search_clear_highlights(self) -> None:
+        """Clear search highlights on the active viewport."""
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.clear_search_highlights()
+
     def shutdown(self) -> None:
         """Clean up resources before exit."""
+        self._search_presenter.shutdown()
         self._nav_presenter.shutdown()
         self._tab_manager.shutdown()
