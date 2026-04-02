@@ -1,1 +1,0 @@
-"""Multi-tab document bar."""
