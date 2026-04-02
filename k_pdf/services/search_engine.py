@@ -56,8 +56,7 @@ class SearchWorker(QObject):
             case_sensitive: Whether to match case.
             whole_word: Whether to match whole words only.
         """
-        if self._cancelled:
-            return
+        self._cancelled = False
 
         if not query:
             self.search_complete.emit(0)

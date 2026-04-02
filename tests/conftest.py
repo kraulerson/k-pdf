@@ -75,6 +75,36 @@ def unreadable_pdf(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def searchable_pdf(tmp_path: Path) -> Path:
+    """Create a 3-page PDF with known searchable text."""
+    path = tmp_path / "searchable.pdf"
+    doc = pymupdf.open()
+    for i in range(3):
+        page = doc.new_page(width=612, height=792)
+        page.insert_text(pymupdf.Point(72, 72), f"Page {i + 1} content")
+        page.insert_text(pymupdf.Point(72, 120), "Hello world")
+        if i == 1:
+            page.insert_text(pymupdf.Point(72, 168), "Hello world again")
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
+def image_only_pdf(tmp_path: Path) -> Path:
+    """Create a PDF with only image content (no text layer)."""
+    path = tmp_path / "image_only.pdf"
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    # Insert a small colored rectangle as an "image"
+    rect = pymupdf.Rect(72, 72, 200, 200)
+    page.draw_rect(rect, color=(1, 0, 0), fill=(0.8, 0.8, 0.8))
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+@pytest.fixture
 def pdf_with_outline(tmp_path: Path) -> Path:
     """Create a PDF with a table of contents / bookmarks."""
     path = tmp_path / "with_outline.pdf"

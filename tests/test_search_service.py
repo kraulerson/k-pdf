@@ -143,15 +143,19 @@ class TestSearchWorker:
 
         worker = SearchWorker()
         page_results: list[tuple[int, list[tuple[float, float, float, float]]]] = []
-        worker.page_matches.connect(lambda pi, rects: page_results.append((pi, rects)))
 
-        # Cancel immediately after starting — the synchronous search will check
-        # _cancelled between pages but since it runs synchronously, cancel before search
-        worker.cancel()
+        def on_page_match(pi: int, rects: list[tuple[float, float, float, float]]) -> None:
+            page_results.append((pi, rects))
+            # Cancel mid-search after first page result
+            if len(page_results) == 1:
+                worker.cancel()
+
+        worker.page_matches.connect(on_page_match)
+
         worker.search(doc, "test", 100, case_sensitive=False, whole_word=False)
 
-        # Should have found 0 results since cancelled before start
-        assert len(page_results) == 0
+        # Should have found at most a few results before cancel took effect
+        assert len(page_results) < 100
 
     def test_empty_query_emits_zero(self) -> None:
         doc = _make_mock_doc(page_count=1)
