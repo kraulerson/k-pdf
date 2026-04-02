@@ -43,6 +43,8 @@ class TabManager(QObject):
     tab_count_changed = Signal(int)
     status_message = Signal(str)
     active_page_status = Signal(int, int)  # (current_page, total_pages)
+    tab_switched = Signal(str)  # session_id
+    tab_closed = Signal(str)  # session_id
 
     def __init__(
         self,
@@ -126,6 +128,8 @@ class TabManager(QObject):
         if ctx is None:
             return
 
+        self.tab_closed.emit(session_id)
+
         # Shut down presenter (stops thread, closes doc)
         if ctx.presenter is not None:
             ctx.presenter.shutdown()
@@ -171,6 +175,15 @@ class TabManager(QObject):
         if ctx is None:
             return None
         return ctx.presenter
+
+    def get_active_viewport(self) -> PdfViewport | None:
+        """Return the active tab's viewport, or None."""
+        if self._active_session_id is None:
+            return None
+        ctx = self._tabs.get(self._active_session_id)
+        if ctx is None:
+            return None
+        return ctx.viewport
 
     def shutdown(self) -> None:
         """Shut down all tabs and clean up resources."""
@@ -240,6 +253,7 @@ class TabManager(QObject):
         for sid, ctx in self._tabs.items():
             if ctx.viewport is widget:
                 self._active_session_id = sid
+                self.tab_switched.emit(sid)
                 if ctx.presenter is not None and ctx.presenter.model is not None:
                     model = ctx.presenter.model
                     self.active_page_status.emit(1, model.metadata.page_count)

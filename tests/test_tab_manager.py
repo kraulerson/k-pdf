@@ -300,3 +300,63 @@ class TestTabManagerErrorHandling:
 
         assert tab_widget.count() == 1
         assert len(manager._tabs) == 1
+
+
+class TestTabManagerNewSignals:
+    """Tests for TabManager tab_switched, tab_closed signals and get_active_viewport."""
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_tab_switched_emits_session_id(self, mock_presenter_cls: MagicMock) -> None:
+        """Test that switching tabs emits tab_switched with session_id."""
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent_files = MagicMock()
+        manager = TabManager(tab_widget=tab_widget, recent_files=recent_files)
+        switched_spy = MagicMock()
+        manager.tab_switched.connect(switched_spy)
+
+        manager.open_file(Path("/tmp/a.pdf"))
+        manager.open_file(Path("/tmp/b.pdf"))
+
+        sids = list(manager._tabs.keys())
+        tab_widget.setCurrentIndex(0)
+
+        switched_spy.assert_called_with(sids[0])
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_tab_closed_emits_session_id(self, mock_presenter_cls: MagicMock) -> None:
+        """Test that closing a tab emits tab_closed with session_id."""
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent_files = MagicMock()
+        manager = TabManager(tab_widget=tab_widget, recent_files=recent_files)
+        closed_spy = MagicMock()
+        manager.tab_closed.connect(closed_spy)
+
+        manager.open_file(Path("/tmp/test.pdf"))
+        sid = next(iter(manager._tabs))
+        manager.close_tab(sid)
+
+        closed_spy.assert_called_once_with(sid)
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_get_active_viewport_returns_viewport(self, mock_presenter_cls: MagicMock) -> None:
+        """Test get_active_viewport returns the active tab's PdfViewport."""
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent_files = MagicMock()
+        manager = TabManager(tab_widget=tab_widget, recent_files=recent_files)
+
+        manager.open_file(Path("/tmp/test.pdf"))
+        viewport = manager.get_active_viewport()
+
+        assert viewport is not None
+        from k_pdf.views.pdf_viewport import PdfViewport
+
+        assert isinstance(viewport, PdfViewport)
