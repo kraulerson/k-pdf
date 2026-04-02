@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from k_pdf.views.navigation_panel import NavigationPanel
+from k_pdf.views.search_bar import SearchBar
 
 logger = logging.getLogger("k_pdf.views.main_window")
 
@@ -96,7 +97,19 @@ class MainWindow(QMainWindow):
         self._stacked.addWidget(self._welcome)
         self._stacked.addWidget(self._tab_widget)
         self._stacked.setCurrentIndex(0)
-        self.setCentralWidget(self._stacked)
+
+        # Search bar (above viewport area)
+        self._search_bar = SearchBar(self)
+        self._search_bar.closed.connect(self._hide_search_bar)
+
+        # Central container: search bar + stacked widget
+        central = QWidget(self)
+        central_layout = QVBoxLayout(central)
+        central_layout.setContentsMargins(0, 0, 0, 0)
+        central_layout.setSpacing(0)
+        central_layout.addWidget(self._search_bar)
+        central_layout.addWidget(self._stacked)
+        self.setCentralWidget(central)
 
         # Navigation panel (left dock)
         self._nav_panel = NavigationPanel(self)
@@ -129,6 +142,11 @@ class MainWindow(QMainWindow):
         """Return the navigation panel dock widget."""
         return self._nav_panel
 
+    @property
+    def search_bar(self) -> SearchBar:
+        """Return the search bar widget."""
+        return self._search_bar
+
     def _setup_menus(self) -> None:
         """Create the menu bar with File > Open, Close Tab, and Quit."""
         menu_bar = self.menuBar()
@@ -155,6 +173,14 @@ class MainWindow(QMainWindow):
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
 
+        # Edit menu
+        edit_menu = menu_bar.addMenu("&Edit")
+
+        find_action = QAction("&Find...", self)
+        find_action.setShortcut(QKeySequence("Ctrl+F"))
+        find_action.triggered.connect(self._show_search_bar)
+        edit_menu.addAction(find_action)
+
         # View menu
         view_menu = menu_bar.addMenu("&View")
 
@@ -162,6 +188,15 @@ class MainWindow(QMainWindow):
         toggle_nav.setText("Navigation &Panel")
         toggle_nav.setShortcut(QKeySequence("F5"))
         view_menu.addAction(toggle_nav)
+
+    def _show_search_bar(self) -> None:
+        """Show the search bar and focus the input field."""
+        self._search_bar.show()
+        self._search_bar.focus_input()
+
+    def _hide_search_bar(self) -> None:
+        """Hide the search bar."""
+        self._search_bar.hide()
 
     def _open_file_dialog(self) -> None:
         """Show the native file picker and emit file_open_requested."""

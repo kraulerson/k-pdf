@@ -246,6 +246,41 @@ class TestMainWindow:
         assert window.stacked_widget.currentIndex() == 0
         assert window._page_label.text() == "No document"
 
+    def test_search_bar_exists(self) -> None:
+        """Test that MainWindow has a search bar."""
+        from k_pdf.views.main_window import MainWindow
+        from k_pdf.views.search_bar import SearchBar
+
+        window = MainWindow()
+        assert isinstance(window.search_bar, SearchBar)
+
+    def test_search_bar_starts_hidden(self) -> None:
+        """Test that search bar is hidden by default."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert not window.search_bar.isVisible()
+
+    def test_edit_menu_has_find_action(self) -> None:
+        """Test that Edit menu has a Find action with Ctrl+F."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        menu_bar = window.menuBar()
+        edit_menu = None
+        for action in menu_bar.actions():
+            if action.text() == "&Edit":
+                edit_menu = action.menu()
+                break
+        assert edit_menu is not None
+        find_action = None
+        for action in edit_menu.actions():
+            if "Find" in action.text():
+                find_action = action
+                break
+        assert find_action is not None
+        assert find_action.shortcut().toString() == "Ctrl+F"
+
 
 class TestKPdfAppIntegration:
     """Tests for KPdfApp wiring with TabManager."""
