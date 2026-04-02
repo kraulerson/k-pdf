@@ -12,9 +12,11 @@ from pathlib import Path
 from typing import Any
 
 import pymupdf
+from PySide6.QtGui import QImage
 
 from k_pdf.core.document_model import DocumentMetadata, PageInfo
 from k_pdf.services.pdf_errors import (
+    PageRenderError,
     PdfOpenError,
     PdfPasswordIncorrectError,
     PdfPasswordRequiredError,
@@ -146,3 +148,52 @@ class PdfEngine:
             doc_handle.close()
         except Exception:
             logger.warning("Failed to close document handle", exc_info=True)
+
+    def render_page(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        zoom: float = 1.0,
+        rotation: int = 0,
+    ) -> QImage:
+        """Render a single PDF page to a QImage.
+
+        This method is thread-safe and intended to be called from worker threads.
+        The caller should convert QImage to QPixmap on the main thread.
+
+        Args:
+            doc_handle: The pymupdf.Document containing the page.
+            page_index: 0-based page index.
+            zoom: Zoom factor (1.0 = 100%).
+            rotation: Additional rotation in degrees (0, 90, 180, 270).
+
+        Returns:
+            QImage with the rendered page content.
+
+        Raises:
+            PageRenderError: If the page cannot be rendered.
+        """
+        try:
+            if page_index < 0 or page_index >= doc_handle.page_count:
+                msg = f"Page index {page_index} out of range (0-{doc_handle.page_count - 1})"
+                raise IndexError(msg)
+
+            page = doc_handle[page_index]
+            mat = pymupdf.Matrix(zoom, zoom).prerotate(rotation)
+            pix = page.get_pixmap(matrix=mat, alpha=False)
+
+            image = QImage(
+                pix.samples,
+                pix.width,
+                pix.height,
+                pix.stride,
+                QImage.Format.Format_RGB888,
+            )
+            # QImage references pix.samples buffer — make a deep copy
+            return image.copy()
+
+        except IndexError as e:
+            raise PageRenderError(str(e)) from e
+        except Exception as e:
+            msg = f"Failed to render page {page_index}: {e}"
+            raise PageRenderError(msg) from e

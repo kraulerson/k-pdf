@@ -94,3 +94,39 @@ class TestOpenDocument:
         """Test corrupt PDF raises PdfOpenError."""
         with pytest.raises(PdfOpenError):
             self.engine.open_document(corrupt_pdf)
+
+
+class TestRenderPage:
+    """Tests for PdfEngine.render_page."""
+
+    def setup_method(self) -> None:
+        """Set up test engine instance."""
+        self.engine = PdfEngine()
+
+    def test_renders_valid_page_returns_qimage(self, valid_pdf: Path) -> None:
+        """Test rendering a valid page returns a non-empty QImage."""
+        from PySide6.QtGui import QImage
+
+        result = self.engine.open_document(valid_pdf)
+        image = self.engine.render_page(result.doc_handle, page_index=0)
+        assert isinstance(image, QImage)
+        assert image.width() > 0
+        assert image.height() > 0
+        self.engine.close_document(result.doc_handle)
+
+    def test_renders_with_zoom(self, valid_pdf: Path) -> None:
+        """Test that zoom=2.0 produces a larger image than zoom=1.0."""
+        result = self.engine.open_document(valid_pdf)
+        img_1x = self.engine.render_page(result.doc_handle, 0, zoom=1.0)
+        img_2x = self.engine.render_page(result.doc_handle, 0, zoom=2.0)
+        assert img_2x.width() > img_1x.width()
+        self.engine.close_document(result.doc_handle)
+
+    def test_raises_for_invalid_page_index(self, valid_pdf: Path) -> None:
+        """Test that an out-of-range page index raises PageRenderError."""
+        from k_pdf.services.pdf_errors import PageRenderError
+
+        result = self.engine.open_document(valid_pdf)
+        with pytest.raises(PageRenderError):
+            self.engine.render_page(result.doc_handle, page_index=999)
+        self.engine.close_document(result.doc_handle)
