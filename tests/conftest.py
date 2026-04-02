@@ -72,3 +72,24 @@ def unreadable_pdf(tmp_path: Path) -> Path:
     path.chmod(0o000)
     yield path
     path.chmod(0o644)  # restore for cleanup
+
+
+@pytest.fixture
+def pdf_with_outline(tmp_path: Path) -> Path:
+    """Create a PDF with a table of contents / bookmarks."""
+    path = tmp_path / "with_outline.pdf"
+    doc = pymupdf.open()
+    for i in range(5):
+        page = doc.new_page(width=612, height=792)
+        page.insert_text(pymupdf.Point(72, 72), f"Chapter {i + 1}")
+    toc = [
+        [1, "Chapter 1", 1],
+        [2, "Section 1.1", 1],
+        [2, "Section 1.2", 2],
+        [1, "Chapter 2", 3],
+        [1, "Chapter 3", 5],
+    ]
+    doc.set_toc(toc)
+    doc.save(str(path))
+    doc.close()
+    return path
