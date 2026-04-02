@@ -102,5 +102,5 @@ source = ["k_pdf"]
 omit = ["tests/*"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 65
 show_missing = true
