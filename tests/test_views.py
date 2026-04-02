@@ -71,6 +71,23 @@ class TestPdfViewport:
         # Verify the item was replaced (no crash, item exists)
         assert 0 in viewport._page_items
 
+    def test_scroll_to_page_exists(self) -> None:
+        """Test that scroll_to_page method exists and doesn't raise."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+            PageInfo(index=1, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+            PageInfo(index=2, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.scroll_to_page(1)
+
+    def test_current_page_changed_signal_exists(self) -> None:
+        """Test that current_page_changed signal exists."""
+        viewport = PdfViewport()
+        spy = MagicMock()
+        viewport.current_page_changed.connect(spy)
+
 
 class TestMainWindow:
     """Tests for MainWindow with multi-tab support."""

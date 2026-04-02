@@ -46,6 +46,7 @@ class PdfViewport(QGraphicsView):
     """
 
     visible_pages_changed = Signal(list)  # list[int] of visible page indices
+    current_page_changed = Signal(int)  # topmost visible page index
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -59,6 +60,7 @@ class PdfViewport(QGraphicsView):
         self._pages: list[PageInfo] = []
         self._page_items: dict[int, QGraphicsPixmapItem | QGraphicsRectItem] = {}
         self._page_y_offsets: list[float] = []
+        self._current_page: int = -1
 
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -187,6 +189,17 @@ class PdfViewport(QGraphicsView):
         )
         self._scene.addItem(label)
 
+    def scroll_to_page(self, page_index: int) -> None:
+        """Scroll the viewport to show the specified page at the top.
+
+        Args:
+            page_index: 0-based page index to scroll to.
+        """
+        if page_index < 0 or page_index >= len(self._page_y_offsets):
+            return
+        y = self._page_y_offsets[page_index]
+        self.verticalScrollBar().setValue(int(y))
+
     def get_visible_page_range(self) -> tuple[int, int]:
         """Calculate which pages are currently visible plus 1-page buffer.
 
@@ -228,6 +241,9 @@ class PdfViewport(QGraphicsView):
         first, last = self.get_visible_page_range()
         if first >= 0:
             self.visible_pages_changed.emit(list(range(first, last + 1)))
+            if first != self._current_page:
+                self._current_page = first
+                self.current_page_changed.emit(first)
 
     def _max_page_width(self, zoom: float) -> float:
         """Return the maximum page width at the given zoom."""
