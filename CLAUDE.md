@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** none yet
-- **Features remaining:** see MVP Cutline (12 features + 7 implicit)
-- **Known issues:** none
-- **Last session summary:** Phase 2 initialization — project scaffolding, deps, tooling
+- **Features built:** Feature 1 (Open and Render PDF)
+- **Features remaining:** Features 2-12 + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 69% (threshold 65%) — app.py/main.py/event_bus.py untested wiring code
+- **Last session summary:** Feature 1 complete — PdfEngine, QGraphicsView viewport, DocumentPresenter with QThread worker, MainWindow, 43 tests passing
 
 Update this section at the end of every session.
 
