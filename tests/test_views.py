@@ -109,6 +109,21 @@ class TestMainWindow:
         assert tw.isMovable() is True
         assert tw.documentMode() is True
 
+    def test_navigation_panel_exists(self) -> None:
+        """Test that MainWindow has a navigation panel dock widget."""
+        from k_pdf.views.main_window import MainWindow
+        from k_pdf.views.navigation_panel import NavigationPanel
+
+        window = MainWindow()
+        assert isinstance(window.navigation_panel, NavigationPanel)
+
+    def test_navigation_panel_starts_hidden(self) -> None:
+        """Test that navigation panel is hidden by default."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert not window.navigation_panel.isVisible()
+
     def test_tab_close_requested_signal(self) -> None:
         """Test that tab_close_requested signal exists and is emittable."""
         from k_pdf.views.main_window import MainWindow

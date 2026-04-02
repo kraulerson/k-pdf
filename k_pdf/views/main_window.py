@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from k_pdf.views.navigation_panel import NavigationPanel
+
 logger = logging.getLogger("k_pdf.views.main_window")
 
 
@@ -96,6 +98,11 @@ class MainWindow(QMainWindow):
         self._stacked.setCurrentIndex(0)
         self.setCentralWidget(self._stacked)
 
+        # Navigation panel (left dock)
+        self._nav_panel = NavigationPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._nav_panel)
+        self._nav_panel.hide()
+
         # Status bar
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -116,6 +123,11 @@ class MainWindow(QMainWindow):
     def tab_widget(self) -> QTabWidget:
         """Return the tab widget for TabManager to add/remove viewports."""
         return self._tab_widget
+
+    @property
+    def navigation_panel(self) -> NavigationPanel:
+        """Return the navigation panel dock widget."""
+        return self._nav_panel
 
     def _setup_menus(self) -> None:
         """Create the menu bar with File > Open, Close Tab, and Quit."""
@@ -142,6 +154,14 @@ class MainWindow(QMainWindow):
         quit_action.setShortcut(QKeySequence.StandardKey.Quit)
         quit_action.triggered.connect(self.close)
         file_menu.addAction(quit_action)
+
+        # View menu
+        view_menu = menu_bar.addMenu("&View")
+
+        toggle_nav = self._nav_panel.toggleViewAction()
+        toggle_nav.setText("Navigation &Panel")
+        toggle_nav.setShortcut(QKeySequence("F5"))
+        view_menu.addAction(toggle_nav)
 
     def _open_file_dialog(self) -> None:
         """Show the native file picker and emit file_open_requested."""
