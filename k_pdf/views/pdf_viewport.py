@@ -18,9 +18,6 @@ from PySide6.QtWidgets import (
     QGraphicsScene,
     QGraphicsSimpleTextItem,
     QGraphicsView,
-    QLabel,
-    QPushButton,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -40,35 +37,6 @@ class ViewportState(Enum):
     SUCCESS = auto()
 
 
-class WelcomeWidget(QWidget):
-    """Welcome screen shown when no document is open."""
-
-    open_clicked = Signal()
-
-    def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the welcome widget with title, subtitle, and open button."""
-        super().__init__(parent)
-        layout = QVBoxLayout(self)
-        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        title = QLabel("K-PDF")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        font = title.font()
-        font.setPointSize(24)
-        font.setBold(True)
-        title.setFont(font)
-        layout.addWidget(title)
-
-        subtitle = QLabel("Free, offline PDF reader and editor")
-        subtitle.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(subtitle)
-
-        open_btn = QPushButton("Open File")
-        open_btn.setFixedWidth(200)
-        open_btn.clicked.connect(self.open_clicked.emit)
-        layout.addWidget(open_btn, alignment=Qt.AlignmentFlag.AlignCenter)
-
-
 class PdfViewport(QGraphicsView):
     """QGraphicsView that displays rendered PDF pages.
 
@@ -80,7 +48,7 @@ class PdfViewport(QGraphicsView):
     visible_pages_changed = Signal(list)  # list[int] of visible page indices
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialize the PDF viewport with an empty scene and welcome overlay."""
+        """Initialize the PDF viewport with an empty scene."""
         super().__init__(parent)
         self._scene = QGraphicsScene(self)
         self.setScene(self._scene)
@@ -92,17 +60,8 @@ class PdfViewport(QGraphicsView):
         self._page_items: dict[int, QGraphicsPixmapItem | QGraphicsRectItem] = {}
         self._page_y_offsets: list[float] = []
 
-        # Welcome widget overlay
-        self._welcome = WelcomeWidget(self)
-        self._welcome.show()
-
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
-
-    @property
-    def welcome_widget(self) -> WelcomeWidget:
-        """Return the welcome widget for external signal connections."""
-        return self._welcome
 
     @property
     def state(self) -> ViewportState:
@@ -112,7 +71,6 @@ class PdfViewport(QGraphicsView):
     def set_loading(self, filename: str) -> None:
         """Switch to loading state."""
         self._state = ViewportState.LOADING
-        self._welcome.hide()
         self._scene.clear()
         self._page_items.clear()
         text = self._scene.addSimpleText(f"Loading {filename}...")
@@ -121,7 +79,6 @@ class PdfViewport(QGraphicsView):
     def set_error(self, message: str) -> None:
         """Switch to error state."""
         self._state = ViewportState.ERROR
-        self._welcome.hide()
         self._scene.clear()
         self._page_items.clear()
         text = self._scene.addSimpleText(message)
@@ -139,7 +96,6 @@ class PdfViewport(QGraphicsView):
             zoom: Current zoom factor.
         """
         self._state = ViewportState.SUCCESS
-        self._welcome.hide()
         self._scene.clear()
         self._page_items.clear()
         self._pages = pages
@@ -230,14 +186,6 @@ class PdfViewport(QGraphicsView):
             y_pos + (page_info.height - label_rect.height()) / 2,
         )
         self._scene.addItem(label)
-
-    def show_welcome(self) -> None:
-        """Show the welcome screen (no document open)."""
-        self._state = ViewportState.EMPTY
-        self._scene.clear()
-        self._page_items.clear()
-        self._pages = []
-        self._welcome.show()
 
     def get_visible_page_range(self) -> tuple[int, int]:
         """Calculate which pages are currently visible plus 1-page buffer.

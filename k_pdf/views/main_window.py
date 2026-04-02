@@ -44,10 +44,9 @@ class MainWindow(QMainWindow):
         self.resize(1200, 800)
         self.setAcceptDrops(True)
 
-        # Central viewport
+        # Central viewport (Task 2 will replace this with QStackedWidget + QTabWidget)
         self.viewport = PdfViewport(self)
         self.setCentralWidget(self.viewport)
-        self.viewport.welcome_widget.open_clicked.connect(self._open_file_dialog)
 
         # Status bar
         self._status_bar = QStatusBar(self)

@@ -52,6 +52,11 @@ class TestPdfViewport:
         viewport.set_document(pages)
         assert viewport.state == ViewportState.SUCCESS
 
+    def test_viewport_has_no_welcome_widget(self) -> None:
+        """Test that PdfViewport does not have a welcome overlay."""
+        viewport = PdfViewport()
+        assert not hasattr(viewport, "welcome_widget")
+
     def test_set_page_pixmap_replaces_placeholder(self) -> None:
         """Test set_page_pixmap replaces the placeholder item."""
         viewport = PdfViewport()
