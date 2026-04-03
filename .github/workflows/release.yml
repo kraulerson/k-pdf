@@ -127,6 +127,30 @@ jobs:
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
 
+      - name: Sign macOS app bundle
+        if: runner.os == 'macOS'
+        run: |
+          cd build/main.app/Contents
+          mkdir -p Frameworks
+          mv MacOS/lib*.dylib Frameworks/ 2>/dev/null || true
+
+          # Update main binary to find dylibs in Frameworks
+          for dylib in Frameworks/*.dylib; do
+            name=$(basename "$dylib")
+            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+            install_name_tool -change "$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+          done
+          install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
+
+          # Sign inside-out: individual libs, then binary, then bundle
+          find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
+          find MacOS -name '*.so' -exec codesign --force --sign - {} \; 2>/dev/null || true
+          codesign --force --sign - MacOS/main
+          cd ../../..
+          codesign --force --deep --sign - build/main.app
+          echo "Bundle signed. Verifying..."
+          codesign --verify --deep --strict build/main.app && echo "Signature valid" || echo "Signature issues found"
+
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
         run: |

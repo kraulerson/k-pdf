@@ -210,6 +210,24 @@ jobs:
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
 
+      - name: Sign macOS app bundle
+        if: runner.os == 'macOS'
+        run: |
+          cd build/main.app/Contents
+          mkdir -p Frameworks
+          mv MacOS/lib*.dylib Frameworks/ 2>/dev/null || true
+          for dylib in Frameworks/*.dylib; do
+            name=$(basename "$dylib")
+            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+            install_name_tool -change "$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+          done
+          install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
+          find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
+          find MacOS -name '*.so' -exec codesign --force --sign - {} \; 2>/dev/null || true
+          codesign --force --sign - MacOS/main
+          cd ../../..
+          codesign --force --deep --sign - build/main.app
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
