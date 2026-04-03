@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing)
-- **Features remaining:** 5 implicit (see MVP Cutline)
+- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing + Undo/Redo (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing, Undo/Redo)
+- **Features remaining:** 4 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 84%+ (threshold 65%)
-- **Last session summary:** Merged Printing (Ctrl+P) implicit feature — PrintService renders pages at 300 DPI to QPrinter via QPainter. File > Print... action with full page range support.
+- **Last session summary:** Implemented Undo/Redo implicit feature: UndoManager core, per-tab stacks in TabContext, Edit menu Undo/Redo actions, KPdfApp wiring.
 
 Update this section at the end of every session.
 

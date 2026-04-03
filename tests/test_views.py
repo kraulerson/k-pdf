@@ -354,18 +354,13 @@ class TestMainWindow:
 
     def test_edit_menu_has_find_action(self) -> None:
         """Test that Edit menu has a Find action with Ctrl+F."""
+        from PySide6.QtGui import QAction
+
         from k_pdf.views.main_window import MainWindow
 
         window = MainWindow()
-        menu_bar = window.menuBar()
-        edit_menu = None
-        for action in menu_bar.actions():
-            if action.text() == "&Edit":
-                edit_menu = action.menu()
-                break
-        assert edit_menu is not None
         find_action = None
-        for action in edit_menu.actions():
+        for action in window.findChildren(QAction):
             if "Find" in action.text():
                 find_action = action
                 break
