@@ -237,6 +237,12 @@ class KPdfApp:
         # AnnotationPresenter tool mode -> update MainWindow tool check states
         self._annotation_presenter.tool_mode_changed.connect(self._on_tool_mode_changed)
 
+        # Text copy wiring
+        self._window.copy_requested.connect(self._annotation_presenter.copy_selected_text)
+        self._window.select_all_requested.connect(self._annotation_presenter.select_all_text)
+        self._annotation_presenter.text_copied.connect(self._on_text_copied)
+        self._annotation_presenter.selection_changed.connect(self._window.set_copy_enabled)
+
         # NoteEditor -> AnnotationPresenter
         self._note_editor.editing_finished.connect(self._annotation_presenter._on_editing_finished)
         self._note_editor.editing_cancelled.connect(
@@ -461,6 +467,10 @@ class KPdfApp:
             first, last = viewport.get_visible_page_range()
             if first >= 0:
                 presenter.request_pages(list(range(first, last + 1)))
+
+    def _on_text_copied(self, text: str) -> None:
+        """Show status bar message when text is copied to clipboard."""
+        self._window.update_status_message("Copied to clipboard")
 
     def _on_annotation_dirty_changed(self, dirty: bool) -> None:
         """Update tab title with dirty indicator."""

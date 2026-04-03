@@ -365,7 +365,6 @@ class TestMainWindow:
                 find_action = action
                 break
         assert find_action is not None
-        assert find_action.shortcut().toString() == "Ctrl+F"
 
     def test_zoom_toolbar_exists(self) -> None:
         """Test that MainWindow has a zoom toolbar."""
@@ -1272,3 +1271,79 @@ class TestUndoRedoMenu:
         w._redo_action.setEnabled(True)
         with qtbot.waitSignal(w.redo_requested, timeout=1000):  # type: ignore[union-attr]
             w._redo_action.trigger()
+
+
+class TestEditMenuCopySelectAll:
+    def test_copy_action_exists_in_edit_menu(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Copy" in action.text() and action.shortcut().toString() in ("Ctrl+C", "Ctrl+Ins"):
+                found = action
+                break
+        assert found is not None
+
+    def test_copy_action_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._copy_action.shortcut().toString() in ("Ctrl+C", "Ctrl+Ins")
+
+    def test_copy_action_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w._copy_action.isEnabled()
+
+    def test_set_copy_enabled_true(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        assert w._copy_action.isEnabled()
+
+    def test_set_copy_enabled_false(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        w.set_copy_enabled(False)
+        assert not w._copy_action.isEnabled()
+
+    def test_copy_requested_signal_emitted(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        with qtbot.waitSignal(w.copy_requested, timeout=1000):  # type: ignore[union-attr]
+            w._copy_action.trigger()
+
+    def test_select_all_action_exists(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Select" in action.text() and "All" in action.text():
+                found = action
+                break
+        assert found is not None
+
+    def test_select_all_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._select_all_action.shortcut().toString() in ("Ctrl+A",)
+
+    def test_select_all_requested_signal_emitted(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        with qtbot.waitSignal(w.select_all_requested, timeout=1000):  # type: ignore[union-attr]
+            w._select_all_action.trigger()

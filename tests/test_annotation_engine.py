@@ -310,3 +310,68 @@ class TestGetAnnotationInfo:
         assert "rect" in info
         assert len(info["rect"]) == 4
         doc.close()
+
+
+class TestExtractTextInRects:
+    def test_extracts_single_word(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        words = engine.get_text_words(doc, 0)
+        # Use the bounding box of the first word
+        first_word_rect = [(words[0][0], words[0][1], words[0][2], words[0][3])]
+        text = engine.extract_text_in_rects(doc, 0, first_word_rect)
+        assert text == words[0][4]
+        doc.close()
+
+    def test_extracts_multiple_words_reading_order(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        words = engine.get_text_words(doc, 0)
+        # Select all words on the first block (first visual line)
+        first_block = words[0][5]
+        block0_words = [w for w in words if w[5] == first_block]
+        rects = [(w[0], w[1], w[2], w[3]) for w in block0_words]
+        text = engine.extract_text_in_rects(doc, 0, rects)
+        expected = " ".join(w[4] for w in block0_words)
+        assert text == expected
+        doc.close()
+
+    def test_returns_empty_for_image_only_page(self, image_only_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(image_only_pdf))
+        text = engine.extract_text_in_rects(doc, 0, [(0, 0, 1000, 1000)])
+        assert text == ""
+        doc.close()
+
+    def test_returns_empty_for_empty_rects(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        text = engine.extract_text_in_rects(doc, 0, [])
+        assert text == ""
+        doc.close()
+
+    def test_multiline_selection_preserves_lines(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        words = engine.get_text_words(doc, 0)
+        # Words from insert_text have different block_no for each line
+        block_nos = sorted({w[5] for w in words})
+        assert len(block_nos) >= 2, "Need at least 2 blocks for this test"
+        # Select all words on the first two blocks (visual lines)
+        two_block_words = [w for w in words if w[5] in (block_nos[0], block_nos[1])]
+        rects = [(w[0], w[1], w[2], w[3]) for w in two_block_words]
+        text = engine.extract_text_in_rects(doc, 0, rects)
+        assert "\n" in text
+        doc.close()
+
+    def test_all_words_on_page(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        words = engine.get_text_words(doc, 0)
+        # Select with a huge bounding box that covers everything
+        rects = [(0, 0, 1000, 1000)]
+        text = engine.extract_text_in_rects(doc, 0, rects)
+        # Should contain all words
+        for w in words:
+            assert w[4] in text
+        doc.close()

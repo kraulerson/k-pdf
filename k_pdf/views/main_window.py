@@ -91,6 +91,8 @@ class MainWindow(QMainWindow):
     preferences_requested = Signal()
     undo_requested = Signal()
     redo_requested = Signal()
+    copy_requested = Signal()
+    select_all_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -274,6 +276,19 @@ class MainWindow(QMainWindow):
         self._redo_action.setEnabled(False)
         self._redo_action.triggered.connect(self.redo_requested.emit)
         edit_menu.addAction(self._redo_action)
+
+        edit_menu.addSeparator()
+
+        self._copy_action = QAction("&Copy", self)
+        self._copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        self._copy_action.setEnabled(False)
+        self._copy_action.triggered.connect(self.copy_requested.emit)
+        edit_menu.addAction(self._copy_action)
+
+        self._select_all_action = QAction("Select &All", self)
+        self._select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        self._select_all_action.triggered.connect(self.select_all_requested.emit)
+        edit_menu.addAction(self._select_all_action)
 
         edit_menu.addSeparator()
 
@@ -474,6 +489,14 @@ class MainWindow(QMainWindow):
             enabled: True to enable, False to disable.
         """
         self._print_action.setEnabled(enabled)
+
+    def set_copy_enabled(self, enabled: bool) -> None:
+        """Enable or disable the Copy action.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._copy_action.setEnabled(enabled)
 
     def set_undo_state(
         self,

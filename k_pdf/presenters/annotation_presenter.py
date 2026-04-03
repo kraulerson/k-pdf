@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QApplication
 
 from k_pdf.core.annotation_model import AnnotationType, ToolMode
 from k_pdf.presenters.tab_manager import TabManager
@@ -27,6 +28,8 @@ class AnnotationPresenter(QObject):
     annotation_created = Signal()  # emitted after annotation added (triggers re-render)
     annotation_deleted = Signal()  # emitted after annotation removed (triggers re-render)
     tool_mode_changed = Signal(int)  # emitted when tool mode changes
+    text_copied = Signal(str)  # emitted after text is copied to clipboard
+    selection_changed = Signal(bool)  # emitted when selection state changes
 
     def __init__(
         self,
@@ -71,6 +74,69 @@ class AnnotationPresenter(QObject):
             editor: A NoteEditor instance.
         """
         self._note_editor = editor
+
+    @property
+    def has_selection(self) -> bool:
+        """Return True when text is currently selected."""
+        return bool(self._selected_rects) and self._selected_page >= 0
+
+    def copy_selected_text(self) -> str:
+        """Extract text from current selection and copy to system clipboard.
+
+        Returns:
+            The extracted text string. Empty string if no selection or no document.
+        """
+        if not self.has_selection:
+            return ""
+
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is None or doc_presenter.model is None:
+            return ""
+
+        model = doc_presenter.model
+        text = self._engine.extract_text_in_rects(
+            model.doc_handle, self._selected_page, self._selected_rects
+        )
+
+        if text:
+            clipboard = QApplication.clipboard()
+            if clipboard is not None:
+                clipboard.setText(text)
+            self.text_copied.emit(text)
+            logger.debug("Copied %d characters to clipboard", len(text))
+
+        return text
+
+    def select_all_text(self) -> None:
+        """Select all text on the current page.
+
+        Gets all word rects from the annotation engine for the current page
+        and stores them as the active selection. Emits selection_changed and
+        shows the annotation toolbar.
+        """
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is None or doc_presenter.model is None:
+            return
+
+        model = doc_presenter.model
+        page_index: int = doc_presenter.current_page
+
+        words = self._engine.get_text_words(model.doc_handle, page_index)
+        if not words:
+            return
+
+        rects = [(w[0], w[1], w[2], w[3]) for w in words]
+        self._selected_page = page_index
+        self._selected_rects = rects
+        self.selection_changed.emit(True)
+
+        # Show toolbar near the selection
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            global_pos = viewport.mapToGlobal(viewport.rect().center())
+            self._toolbar.show_near(global_pos.x(), global_pos.y() - 60)
+
+        logger.debug("Selected all %d words on page %d", len(rects), page_index)
 
     def set_tool_mode(self, mode: ToolMode) -> None:
         """Set the active tool mode.
@@ -118,6 +184,7 @@ class AnnotationPresenter(QObject):
 
         self._selected_page = page_index
         self._selected_rects = rects
+        self.selection_changed.emit(True)
 
         # Show toolbar near the selection
         viewport = self._tab_manager.get_active_viewport()
@@ -304,6 +371,7 @@ class AnnotationPresenter(QObject):
         Args:
             session_id: The new active tab's session ID.
         """
+        # _clear_selection emits selection_changed(False) if there was a selection
         self._clear_selection()
         self._toolbar.hide()
         if self._note_editor is not None:
@@ -312,9 +380,12 @@ class AnnotationPresenter(QObject):
         self._selection_mode = False
 
     def _clear_selection(self) -> None:
-        """Clear the stored text selection state."""
+        """Clear the stored text selection state and emit selection_changed(False)."""
+        had_selection = self.has_selection
         self._selected_rects = []
         self._selected_page = -1
+        if had_selection:
+            self.selection_changed.emit(False)
 
     def _on_annotation_requested(
         self, ann_type: AnnotationType, color: tuple[float, float, float]
