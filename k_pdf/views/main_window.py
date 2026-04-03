@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
     merge_requested = Signal()
     dark_mode_changed = Signal(str)  # ThemeMode.value
     dark_mode_toggle_requested = Signal()
+    preferences_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -264,6 +265,14 @@ class MainWindow(QMainWindow):
         find_action.setShortcut(QKeySequence("Ctrl+F"))
         find_action.triggered.connect(self._show_search_bar)
         edit_menu.addAction(find_action)
+
+        edit_menu.addSeparator()
+
+        prefs_action = QAction("&Preferences...", self)
+        prefs_action.setShortcut(QKeySequence("Ctrl+,"))
+        prefs_action.setMenuRole(QAction.MenuRole.PreferencesRole)
+        prefs_action.triggered.connect(self.preferences_requested.emit)
+        edit_menu.addAction(prefs_action)
 
         # View menu
         view_menu = menu_bar.addMenu("&View")

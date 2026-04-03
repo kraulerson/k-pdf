@@ -14,6 +14,7 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
+from k_pdf.core.preferences_manager import PreferencesManager
 from k_pdf.core.theme_manager import ThemeManager, ThemeMode
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
@@ -89,6 +90,7 @@ class KPdfApp:
         self._theme_manager = ThemeManager(app)
         self._pdf_engine = PdfEngine()
         self._print_service = PrintService()
+        self._prefs_manager = PreferencesManager(self._db)
         self._initial_file = file_path
 
         self._connect_signals()
@@ -138,6 +140,11 @@ class KPdfApp:
         """Return the theme manager."""
         return self._theme_manager
 
+    @property
+    def preferences_manager(self) -> PreferencesManager:
+        """Return the preferences manager."""
+        return self._prefs_manager
+
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
         # View → TabManager
@@ -146,6 +153,7 @@ class KPdfApp:
         self._window.password_submitted.connect(self._on_password_submitted)
         self._window.merge_requested.connect(self._on_merge_requested)
         self._window.print_requested.connect(self._on_print_requested)
+        self._window.preferences_requested.connect(self._on_preferences_requested)
 
         # TabManager → View
         self._tab_manager.error_occurred.connect(self._window.show_error)
@@ -750,6 +758,31 @@ class KPdfApp:
             message: Error message to display.
         """
         self._window.show_error("Print Failed", message)
+
+    # --- Preferences handler ---
+
+    def _on_preferences_requested(self) -> None:
+        """Show the Preferences dialog."""
+        from k_pdf.views.preferences_dialog import PreferencesDialog
+
+        dialog = PreferencesDialog(self._prefs_manager, self._window)
+        dialog.preferences_saved.connect(self._on_preferences_saved)
+        dialog.exec()
+
+    def _on_preferences_saved(self) -> None:
+        """Apply preference changes after dialog OK.
+
+        Syncs theme preference with ThemeManager.
+        """
+        dark_mode = self._prefs_manager.get_dark_mode()
+        mode_map = {
+            "off": ThemeMode.OFF,
+            "dark_original": ThemeMode.DARK_ORIGINAL,
+            "dark_inverted": ThemeMode.DARK_INVERTED,
+        }
+        mode = mode_map.get(dark_mode)
+        if mode is not None:
+            self._theme_manager.set_mode(mode)
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""

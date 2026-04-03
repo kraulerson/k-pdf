@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing)
-- **Features remaining:** 5 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 84%+ (threshold 65%)
-- **Last session summary:** Merged Printing (Ctrl+P) implicit feature — PrintService renders pages at 300 DPI to QPrinter via QPainter. File > Print... action with full page range support.
+- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing + Preferences (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing, Preferences)
+- **Features remaining:** 4 implicit (see MVP Cutline)
+- **Known issues:** Coverage at ~85% (threshold 65%)
+- **Last session summary:** Merged feature/preferences into main — PreferencesManager, PreferencesDialog, menu wiring combined with Printing and Keyboard Shortcuts.
 
 Update this section at the end of every session.
 
