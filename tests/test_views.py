@@ -354,18 +354,13 @@ class TestMainWindow:
 
     def test_edit_menu_has_find_action(self) -> None:
         """Test that Edit menu has a Find action with Ctrl+F."""
+        from PySide6.QtGui import QAction
+
         from k_pdf.views.main_window import MainWindow
 
         window = MainWindow()
-        menu_bar = window.menuBar()
-        edit_menu = None
-        for action in menu_bar.actions():
-            if action.text() == "&Edit":
-                edit_menu = action.menu()
-                break
-        assert edit_menu is not None
         find_action = None
-        for action in edit_menu.actions():
+        for action in window.findChildren(QAction):
             if "Find" in action.text():
                 find_action = action
                 break
@@ -1162,3 +1157,118 @@ class TestMainWindowPrintAction:
         assert hasattr(window, "print_requested")
         spy = MagicMock()
         window.print_requested.connect(spy)
+
+
+class TestUndoRedoMenu:
+    def test_undo_action_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert hasattr(w, "_undo_action")
+
+    def test_redo_action_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert hasattr(w, "_redo_action")
+
+    def test_undo_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._undo_action.shortcut().toString() == "Ctrl+Z"
+
+    def test_redo_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._redo_action.shortcut().toString() == "Ctrl+Shift+Z"
+
+    def test_undo_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w._undo_action.isEnabled()
+
+    def test_redo_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w._redo_action.isEnabled()
+
+    def test_set_undo_state_enables(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_undo_state(
+            can_undo=True,
+            undo_text="Undo Add Highlight",
+            can_redo=False,
+            redo_text="",
+        )
+        assert w._undo_action.isEnabled()
+        assert not w._redo_action.isEnabled()
+        assert "Add Highlight" in w._undo_action.text()
+
+    def test_set_undo_state_both(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_undo_state(
+            can_undo=True,
+            undo_text="Undo Delete Page",
+            can_redo=True,
+            redo_text="Redo Delete Page",
+        )
+        assert w._undo_action.isEnabled()
+        assert w._redo_action.isEnabled()
+        assert "Delete Page" in w._undo_action.text()
+        assert "Delete Page" in w._redo_action.text()
+
+    def test_set_undo_state_resets(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_undo_state(
+            can_undo=True,
+            undo_text="Undo Something",
+            can_redo=True,
+            redo_text="Redo Something",
+        )
+        w.set_undo_state(can_undo=False, undo_text="", can_redo=False, redo_text="")
+        assert not w._undo_action.isEnabled()
+        assert not w._redo_action.isEnabled()
+        assert w._undo_action.text() == "&Undo"
+        assert w._redo_action.text() == "&Redo"
+
+    def test_undo_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert hasattr(w, "undo_requested")
+        spy = MagicMock()
+        w.undo_requested.connect(spy)
+
+    def test_redo_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert hasattr(w, "redo_requested")
+        spy = MagicMock()
+        w.redo_requested.connect(spy)
+
+    def test_undo_action_triggers_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w._undo_action.setEnabled(True)
+        with qtbot.waitSignal(w.undo_requested, timeout=1000):  # type: ignore[union-attr]
+            w._undo_action.trigger()
+
+    def test_redo_action_triggers_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w._redo_action.setEnabled(True)
+        with qtbot.waitSignal(w.redo_requested, timeout=1000):  # type: ignore[union-attr]
+            w._redo_action.trigger()

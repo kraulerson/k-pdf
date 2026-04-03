@@ -8,7 +8,8 @@ from unittest.mock import MagicMock, patch
 from PySide6.QtWidgets import QApplication, QTabWidget
 
 from k_pdf.core.document_model import DocumentMetadata, DocumentModel, PageInfo
-from k_pdf.presenters.tab_manager import TabManager
+from k_pdf.core.undo_manager import UndoManager
+from k_pdf.presenters.tab_manager import TabContext, TabManager
 
 _app: QApplication | None = None
 
@@ -429,3 +430,53 @@ class TestDirtyCloseGuard:
         sid = next(iter(tm._tabs))
         tm.force_close_tab(sid)
         assert sid not in tm._tabs
+
+
+class TestTabManagerUndo:
+    """Tests for per-tab UndoManager integration."""
+
+    def test_tab_context_has_undo_manager(self) -> None:
+        ctx = TabContext()
+        assert isinstance(ctx.undo_manager, UndoManager)
+
+    def test_each_tab_gets_own_undo_manager(self) -> None:
+        ctx1 = TabContext()
+        ctx2 = TabContext()
+        assert ctx1.undo_manager is not ctx2.undo_manager
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_get_active_undo_manager_returns_instance(self, mock_presenter_cls: MagicMock) -> None:
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+
+        tm.open_file(Path("/tmp/test.pdf"))
+        undo_mgr = tm.get_active_undo_manager()
+        assert isinstance(undo_mgr, UndoManager)
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_get_active_undo_manager_no_active_tab(self, mock_presenter_cls: MagicMock) -> None:
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+        assert tm.get_active_undo_manager() is None
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_force_close_tab_discards_undo_manager(self, mock_presenter_cls: MagicMock) -> None:
+        mock_presenter = MagicMock()
+        mock_presenter.model = None
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+
+        tm.open_file(Path("/tmp/test.pdf"))
+        sid = next(iter(tm._tabs))
+        undo_mgr = tm.get_active_undo_manager()
+        assert undo_mgr is not None
+        tm.force_close_tab(sid)
+        # After close, the undo manager reference is gone with the tab
+        assert tm.get_active_undo_manager() is None

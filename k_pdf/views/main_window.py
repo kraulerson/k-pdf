@@ -89,6 +89,8 @@ class MainWindow(QMainWindow):
     dark_mode_changed = Signal(str)  # ThemeMode.value
     dark_mode_toggle_requested = Signal()
     preferences_requested = Signal()
+    undo_requested = Signal()
+    redo_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -260,6 +262,20 @@ class MainWindow(QMainWindow):
 
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
+
+        self._undo_action = QAction("&Undo", self)
+        self._undo_action.setShortcut(QKeySequence("Ctrl+Z"))
+        self._undo_action.setEnabled(False)
+        self._undo_action.triggered.connect(self.undo_requested.emit)
+        edit_menu.addAction(self._undo_action)
+
+        self._redo_action = QAction("&Redo", self)
+        self._redo_action.setShortcut(QKeySequence("Ctrl+Shift+Z"))
+        self._redo_action.setEnabled(False)
+        self._redo_action.triggered.connect(self.redo_requested.emit)
+        edit_menu.addAction(self._redo_action)
+
+        edit_menu.addSeparator()
 
         find_action = QAction("&Find...", self)
         find_action.setShortcut(QKeySequence("Ctrl+F"))
@@ -458,6 +474,26 @@ class MainWindow(QMainWindow):
             enabled: True to enable, False to disable.
         """
         self._print_action.setEnabled(enabled)
+
+    def set_undo_state(
+        self,
+        can_undo: bool,
+        undo_text: str,
+        can_redo: bool,
+        redo_text: str,
+    ) -> None:
+        """Update Undo/Redo menu action enabled state and text.
+
+        Args:
+            can_undo: Whether undo is available.
+            undo_text: Label for undo action (e.g. "Undo Add Highlight"), or empty.
+            can_redo: Whether redo is available.
+            redo_text: Label for redo action (e.g. "Redo Add Highlight"), or empty.
+        """
+        self._undo_action.setEnabled(can_undo)
+        self._undo_action.setText(undo_text if undo_text else "&Undo")
+        self._redo_action.setEnabled(can_redo)
+        self._redo_action.setText(redo_text if redo_text else "&Redo")
 
     def set_theme_mode(self, mode: object) -> None:
         """Update the UI to reflect the current theme mode.

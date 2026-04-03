@@ -6,6 +6,7 @@ Handles CLI file arguments.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from pathlib import Path
 
@@ -16,6 +17,7 @@ from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.preferences_manager import PreferencesManager
 from k_pdf.core.theme_manager import ThemeManager, ThemeMode
+from k_pdf.core.undo_manager import UndoManager
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
@@ -92,6 +94,7 @@ class KPdfApp:
         self._print_service = PrintService()
         self._prefs_manager = PreferencesManager(self._db)
         self._initial_file = file_path
+        self._active_undo_manager: UndoManager | None = None
 
         self._connect_signals()
         self._window.show()
@@ -288,6 +291,12 @@ class KPdfApp:
 
         # Print wiring
         self._tab_manager.document_ready.connect(self._on_document_ready_print)
+
+        # Undo/Redo wiring
+        self._window.undo_requested.connect(self._on_undo)
+        self._window.redo_requested.connect(self._on_redo)
+        self._tab_manager.tab_switched.connect(self._on_tab_switched_undo)
+        self._tab_manager.document_ready.connect(self._on_document_ready_undo)
 
     def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
         """Wire annotation summary panel for a newly loaded document."""
@@ -783,6 +792,64 @@ class KPdfApp:
         mode = mode_map.get(dark_mode)
         if mode is not None:
             self._theme_manager.set_mode(mode)
+
+    # --- Undo/Redo handlers ---
+
+    def _on_undo(self) -> None:
+        """Execute undo on the active tab's UndoManager."""
+        undo_mgr = self._tab_manager.get_active_undo_manager()
+        if undo_mgr is not None:
+            undo_mgr.undo()
+
+    def _on_redo(self) -> None:
+        """Execute redo on the active tab's UndoManager."""
+        undo_mgr = self._tab_manager.get_active_undo_manager()
+        if undo_mgr is not None:
+            undo_mgr.redo()
+
+    def _on_tab_switched_undo(self, session_id: str) -> None:
+        """Update undo/redo menu state when tab switches."""
+        undo_mgr = self._tab_manager.get_active_undo_manager()
+        self._connect_undo_manager(undo_mgr)
+        self._update_undo_menu_state()
+
+    def _on_document_ready_undo(self, session_id: str, model: object) -> None:
+        """Connect the new tab's UndoManager state_changed signal."""
+        undo_mgr = self._tab_manager.get_active_undo_manager()
+        self._connect_undo_manager(undo_mgr)
+
+    def _connect_undo_manager(self, undo_mgr: UndoManager | None) -> None:
+        """Connect/disconnect UndoManager.state_changed for menu updates.
+
+        Args:
+            undo_mgr: The UndoManager to connect, or None to disconnect only.
+        """
+        # Disconnect previous
+        if self._active_undo_manager is not None:
+            with contextlib.suppress(RuntimeError):
+                self._active_undo_manager.state_changed.disconnect(self._update_undo_menu_state)
+
+        self._active_undo_manager = undo_mgr
+
+        # Connect new
+        if undo_mgr is not None:
+            undo_mgr.state_changed.connect(self._update_undo_menu_state)
+
+    def _update_undo_menu_state(self) -> None:
+        """Sync Edit menu Undo/Redo enabled state and text with active UndoManager."""
+        undo_mgr = self._tab_manager.get_active_undo_manager()
+        if undo_mgr is None:
+            self._window.set_undo_state(can_undo=False, undo_text="", can_redo=False, redo_text="")
+            return
+
+        undo_text = f"&Undo {undo_mgr.undo_description}" if undo_mgr.can_undo else ""
+        redo_text = f"&Redo {undo_mgr.redo_description}" if undo_mgr.can_redo else ""
+        self._window.set_undo_state(
+            can_undo=undo_mgr.can_undo,
+            undo_text=undo_text,
+            can_redo=undo_mgr.can_redo,
+            redo_text=redo_text,
+        )
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""

@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing + Preferences (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing, Preferences)
-- **Features remaining:** 4 implicit (see MVP Cutline)
+- **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing + Preferences + Undo/Redo (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing, Preferences, Undo/Redo)
+- **Features remaining:** 3 implicit (see MVP Cutline)
 - **Known issues:** Coverage at ~85% (threshold 65%)
-- **Last session summary:** Merged feature/preferences into main — PreferencesManager, PreferencesDialog, menu wiring combined with Printing and Keyboard Shortcuts.
+- **Last session summary:** Implemented Undo/Redo implicit feature: UndoManager core, per-tab stacks in TabContext, Edit menu Undo/Redo actions, KPdfApp wiring.
 
 Update this section at the end of every session.
 

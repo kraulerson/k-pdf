@@ -16,6 +16,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QTabWidget
 
 from k_pdf.core.document_model import DocumentModel
+from k_pdf.core.undo_manager import UndoManager
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.presenters.document_presenter import DocumentPresenter
 from k_pdf.views.pdf_viewport import PdfViewport
@@ -31,6 +32,7 @@ class TabContext:
     presenter: DocumentPresenter | None = None
     viewport: PdfViewport | None = None
     resolved_path: Path | None = None
+    undo_manager: UndoManager = field(default_factory=UndoManager)
 
 
 class TabManager(QObject):
@@ -211,6 +213,15 @@ class TabManager(QObject):
         if ctx is None:
             return None
         return ctx.viewport
+
+    def get_active_undo_manager(self) -> UndoManager | None:
+        """Return the active tab's UndoManager, or None."""
+        if self._active_session_id is None:
+            return None
+        ctx = self._tabs.get(self._active_session_id)
+        if ctx is None:
+            return None
+        return ctx.undo_manager
 
     def shutdown(self) -> None:
         """Shut down all tabs and clean up resources."""
