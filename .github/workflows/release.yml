@@ -131,29 +131,12 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build/main.app/Contents
-          mkdir -p Frameworks
-          mv MacOS/lib*.dylib Frameworks/ 2>/dev/null || true
 
-          # Update main binary to find dylibs in Frameworks
-          for dylib in Frameworks/*.dylib; do
-            name=$(basename "$dylib")
-            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
-            install_name_tool -change "$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
-          done
-          install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
-
-          # Sign every Mach-O binary (dylibs, .so files, main executable)
-          find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
-          find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
-          codesign --force --sign - MacOS/main
-
-          # Move Python packages out of MacOS to avoid codesign scanning .py files
-          # Put them in Resources and create a sys.path hook
+          # 1. Move Python packages to Resources FIRST (before any signing)
           mkdir -p Resources/python-packages
           mv MacOS/pymupdf Resources/python-packages/ 2>/dev/null || true
           mv MacOS/fitz Resources/python-packages/ 2>/dev/null || true
-
-          # Create a sitecustomize.py that adds Resources/python-packages to sys.path
+          mv MacOS/shiboken6 Resources/python-packages/ 2>/dev/null || true
           cat > MacOS/sitecustomize.py << 'PYEOF'
           import sys, os
           pkg_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Resources", "python-packages")
@@ -161,6 +144,20 @@ jobs:
               sys.path.insert(0, pkg_dir)
           PYEOF
 
+          # 2. Move dylibs to Frameworks
+          mkdir -p Frameworks
+          mv MacOS/lib*.dylib Frameworks/ 2>/dev/null || true
+          for dylib in Frameworks/*.dylib; do
+            name=$(basename "$dylib")
+            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+            install_name_tool -change "$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
+          done
+          install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
+
+          # 3. Sign all Mach-O binaries, then the bundle
+          find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
+          find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
+          codesign --force --sign - MacOS/main
           cd ../../..
           codesign --force --sign - build/main.app
           echo "Bundle signed successfully."
