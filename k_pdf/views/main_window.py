@@ -82,6 +82,7 @@ class MainWindow(QMainWindow):
     text_box_toggled = Signal(bool)
     save_requested = Signal()
     save_as_requested = Signal()
+    merge_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -209,6 +210,13 @@ class MainWindow(QMainWindow):
         self._save_as_action.setEnabled(False)
         self._save_as_action.triggered.connect(self.save_as_requested.emit)
         file_menu.addAction(self._save_as_action)
+
+        file_menu.addSeparator()
+
+        merge_action = QAction("Merge &Documents...", self)
+        merge_action.setShortcut(QKeySequence("Ctrl+Shift+M"))
+        merge_action.triggered.connect(self.merge_requested.emit)
+        file_menu.addAction(merge_action)
 
         file_menu.addSeparator()
 
