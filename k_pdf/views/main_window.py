@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import override
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction, QDragEnterEvent, QDropEvent, QKeySequence
+from PySide6.QtGui import QAction, QActionGroup, QDragEnterEvent, QDropEvent, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -77,6 +77,8 @@ class MainWindow(QMainWindow):
     rotate_cw_triggered = Signal()
     rotate_ccw_triggered = Signal()
     text_selection_toggled = Signal(bool)
+    sticky_note_toggled = Signal(bool)
+    text_box_toggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -248,12 +250,31 @@ class MainWindow(QMainWindow):
         # Tools menu
         self._tools_menu = menu_bar.addMenu("&Tools")
 
-        text_select_action = QAction("&Text Selection Mode", self)
-        text_select_action.setShortcut(QKeySequence("Ctrl+T"))
-        text_select_action.setCheckable(True)
-        text_select_action.setToolTip("Toggle text selection for annotations")
-        text_select_action.toggled.connect(self.text_selection_toggled.emit)
-        self._tools_menu.addAction(text_select_action)
+        # Tool mode action group — only one tool active at a time
+        self._tool_action_group = QActionGroup(self)
+        self._tool_action_group.setExclusive(True)
+
+        self._text_select_action = QAction("&Text Selection Mode", self)
+        self._text_select_action.setShortcut(QKeySequence("Ctrl+T"))
+        self._text_select_action.setCheckable(True)
+        self._text_select_action.setToolTip("Toggle text selection for annotations")
+        self._text_select_action.toggled.connect(self.text_selection_toggled.emit)
+        self._tool_action_group.addAction(self._text_select_action)
+        self._tools_menu.addAction(self._text_select_action)
+
+        self._sticky_note_action = QAction("Sticky &Note", self)
+        self._sticky_note_action.setCheckable(True)
+        self._sticky_note_action.setToolTip("Click to place a sticky note")
+        self._sticky_note_action.toggled.connect(self.sticky_note_toggled.emit)
+        self._tool_action_group.addAction(self._sticky_note_action)
+        self._tools_menu.addAction(self._sticky_note_action)
+
+        self._text_box_action = QAction("Text &Box", self)
+        self._text_box_action.setCheckable(True)
+        self._text_box_action.setToolTip("Drag to draw a text box")
+        self._text_box_action.toggled.connect(self.text_box_toggled.emit)
+        self._tool_action_group.addAction(self._text_box_action)
+        self._tools_menu.addAction(self._text_box_action)
 
     def _show_search_bar(self) -> None:
         """Show the search bar and focus the input field."""
