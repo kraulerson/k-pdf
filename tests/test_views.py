@@ -1104,3 +1104,79 @@ class TestDarkModeMenu:
         w.set_theme_mode(ThemeMode.OFF)
         assert w._dark_mode_off_action.isChecked()
         assert not w._dark_mode_original_action.isChecked()
+
+
+class TestEditMenuCopySelectAll:
+    def test_copy_action_exists_in_edit_menu(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Copy" in action.text() and action.shortcut().toString() in ("Ctrl+C", "Ctrl+Ins"):
+                found = action
+                break
+        assert found is not None
+
+    def test_copy_action_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._copy_action.shortcut().toString() in ("Ctrl+C", "Ctrl+Ins")
+
+    def test_copy_action_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w._copy_action.isEnabled()
+
+    def test_set_copy_enabled_true(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        assert w._copy_action.isEnabled()
+
+    def test_set_copy_enabled_false(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        w.set_copy_enabled(False)
+        assert not w._copy_action.isEnabled()
+
+    def test_copy_requested_signal_emitted(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_copy_enabled(True)
+        with qtbot.waitSignal(w.copy_requested, timeout=1000):  # type: ignore[union-attr]
+            w._copy_action.trigger()
+
+    def test_select_all_action_exists(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Select" in action.text() and "All" in action.text():
+                found = action
+                break
+        assert found is not None
+
+    def test_select_all_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._select_all_action.shortcut().toString() in ("Ctrl+A",)
+
+    def test_select_all_requested_signal_emitted(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        with qtbot.waitSignal(w.select_all_requested, timeout=1000):  # type: ignore[union-attr]
+            w._select_all_action.trigger()

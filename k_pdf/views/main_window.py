@@ -86,6 +86,8 @@ class MainWindow(QMainWindow):
     merge_requested = Signal()
     dark_mode_changed = Signal(str)  # ThemeMode.value
     dark_mode_toggle_requested = Signal()
+    copy_requested = Signal()
+    select_all_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -250,6 +252,19 @@ class MainWindow(QMainWindow):
         # Edit menu
         edit_menu = menu_bar.addMenu("&Edit")
 
+        self._copy_action = QAction("&Copy", self)
+        self._copy_action.setShortcut(QKeySequence.StandardKey.Copy)
+        self._copy_action.setEnabled(False)
+        self._copy_action.triggered.connect(self.copy_requested.emit)
+        edit_menu.addAction(self._copy_action)
+
+        self._select_all_action = QAction("Select &All", self)
+        self._select_all_action.setShortcut(QKeySequence.StandardKey.SelectAll)
+        self._select_all_action.triggered.connect(self.select_all_requested.emit)
+        edit_menu.addAction(self._select_all_action)
+
+        edit_menu.addSeparator()
+
         find_action = QAction("&Find...", self)
         find_action.setShortcut(QKeySequence("Ctrl+F"))
         find_action.triggered.connect(self._show_search_bar)
@@ -402,6 +417,14 @@ class MainWindow(QMainWindow):
         """
         self._save_action.setEnabled(enabled)
         self._save_as_action.setEnabled(enabled)
+
+    def set_copy_enabled(self, enabled: bool) -> None:
+        """Enable or disable the Copy action.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._copy_action.setEnabled(enabled)
 
     def set_theme_mode(self, mode: object) -> None:
         """Update the UI to reflect the current theme mode.
