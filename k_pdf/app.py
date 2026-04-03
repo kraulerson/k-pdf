@@ -12,6 +12,7 @@ from pathlib import Path
 from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtWidgets import QApplication
 
+from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
@@ -22,6 +23,7 @@ from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
+from k_pdf.views.note_editor import NoteEditor
 
 logger = logging.getLogger("k_pdf.app")
 
@@ -57,6 +59,8 @@ class KPdfApp:
             engine=self._annotation_engine,
             toolbar=self._annotation_toolbar,
         )
+        self._note_editor = NoteEditor()
+        self._annotation_presenter.set_note_editor(self._note_editor)
         self._initial_file = file_path
 
         self._connect_signals()
@@ -164,6 +168,8 @@ class KPdfApp:
         # Annotation wiring
         # MainWindow Tools menu -> AnnotationPresenter
         self._window.text_selection_toggled.connect(self._annotation_presenter.set_selection_mode)
+        self._window.sticky_note_toggled.connect(self._on_sticky_note_toggled)
+        self._window.text_box_toggled.connect(self._on_text_box_toggled)
 
         # AnnotationPresenter -> re-render on create/delete
         self._annotation_presenter.annotation_created.connect(self._on_annotation_changed)
@@ -171,6 +177,15 @@ class KPdfApp:
 
         # AnnotationPresenter -> dirty flag -> tab title
         self._annotation_presenter.dirty_changed.connect(self._on_annotation_dirty_changed)
+
+        # AnnotationPresenter tool mode -> update MainWindow tool check states
+        self._annotation_presenter.tool_mode_changed.connect(self._on_tool_mode_changed)
+
+        # NoteEditor -> AnnotationPresenter
+        self._note_editor.editing_finished.connect(self._annotation_presenter._on_editing_finished)
+        self._note_editor.editing_cancelled.connect(
+            self._annotation_presenter._on_editing_cancelled
+        )
 
         # When a new document loads, wire viewport annotation signals
         self._tab_manager.document_ready.connect(self._on_document_ready_annotation)
@@ -354,10 +369,46 @@ class KPdfApp:
             viewport.annotation_delete_requested.connect(
                 self._annotation_presenter.delete_annotation
             )
+            viewport.note_placed.connect(self._annotation_presenter.on_note_placed)
+            viewport.textbox_drawn.connect(self._annotation_presenter.on_textbox_drawn)
+            viewport.annotation_double_clicked.connect(
+                self._annotation_presenter.on_annotation_double_clicked
+            )
+
+    def _on_sticky_note_toggled(self, checked: bool) -> None:
+        """Route Sticky Note tool toggle to annotation presenter."""
+        if checked:
+            self._annotation_presenter.set_tool_mode(ToolMode.STICKY_NOTE)
+        else:
+            self._annotation_presenter.set_tool_mode(ToolMode.NONE)
+
+    def _on_text_box_toggled(self, checked: bool) -> None:
+        """Route Text Box tool toggle to annotation presenter."""
+        if checked:
+            self._annotation_presenter.set_tool_mode(ToolMode.TEXT_BOX)
+        else:
+            self._annotation_presenter.set_tool_mode(ToolMode.NONE)
+
+    def _on_tool_mode_changed(self, mode: int) -> None:
+        """Update MainWindow tool menu check states when tool mode changes."""
+        tool_mode = ToolMode(mode)
+        # Block signals to avoid feedback loop
+        self._window._text_select_action.blockSignals(True)
+        self._window._sticky_note_action.blockSignals(True)
+        self._window._text_box_action.blockSignals(True)
+
+        self._window._text_select_action.setChecked(tool_mode is ToolMode.TEXT_SELECT)
+        self._window._sticky_note_action.setChecked(tool_mode is ToolMode.STICKY_NOTE)
+        self._window._text_box_action.setChecked(tool_mode is ToolMode.TEXT_BOX)
+
+        self._window._text_select_action.blockSignals(False)
+        self._window._sticky_note_action.blockSignals(False)
+        self._window._text_box_action.blockSignals(False)
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
         self._annotation_toolbar.hide()
+        self._note_editor.hide()
         self._search_presenter.shutdown()
         self._nav_presenter.shutdown()
         self._tab_manager.shutdown()
