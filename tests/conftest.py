@@ -123,3 +123,18 @@ def pdf_with_outline(tmp_path: Path) -> Path:
     doc.save(str(path))
     doc.close()
     return path
+
+
+@pytest.fixture
+def annotatable_pdf(tmp_path: Path) -> Path:
+    """Create a 2-page PDF with selectable text suitable for annotation tests."""
+    path = tmp_path / "annotatable.pdf"
+    doc = pymupdf.open()
+    for i in range(2):
+        page = doc.new_page(width=612, height=792)
+        page.insert_text(pymupdf.Point(72, 72), f"Page {i + 1} first line of text")
+        page.insert_text(pymupdf.Point(72, 100), f"Page {i + 1} second line of text")
+        page.insert_text(pymupdf.Point(72, 128), f"Page {i + 1} third line of text")
+    doc.save(str(path))
+    doc.close()
+    return path
