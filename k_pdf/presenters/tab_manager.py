@@ -45,6 +45,7 @@ class TabManager(QObject):
     active_page_status = Signal(int, int)  # (current_page, total_pages)
     tab_switched = Signal(str)  # session_id
     tab_closed = Signal(str)  # session_id
+    close_guard_requested = Signal(str)  # session_id — emitted when dirty tab close attempted
 
     def __init__(
         self,
@@ -119,7 +120,33 @@ class TabManager(QObject):
         presenter.open_file(path)
 
     def close_tab(self, session_id: str) -> None:
-        """Close a tab and clean up its resources.
+        """Close a tab, checking for unsaved changes first.
+
+        If the document has unsaved changes (dirty=True), emits
+        close_guard_requested instead of closing. The app layer
+        handles the Save/Discard/Cancel dialog and calls
+        force_close_tab() or save-then-close.
+
+        Args:
+            session_id: The session ID of the tab to close.
+        """
+        ctx = self._tabs.get(session_id)
+        if ctx is None:
+            return
+
+        # Check dirty flag — defer to app layer for save dialog
+        if (
+            ctx.presenter is not None
+            and ctx.presenter.model is not None
+            and ctx.presenter.model.dirty
+        ):
+            self.close_guard_requested.emit(session_id)
+            return
+
+        self.force_close_tab(session_id)
+
+    def force_close_tab(self, session_id: str) -> None:
+        """Close a tab unconditionally (after save or discard).
 
         Args:
             session_id: The session ID of the tab to close.

@@ -360,3 +360,72 @@ class TestTabManagerNewSignals:
         from k_pdf.views.pdf_viewport import PdfViewport
 
         assert isinstance(viewport, PdfViewport)
+
+
+class TestDirtyCloseGuard:
+    """Tests for dirty tab close guard behavior."""
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_close_guard_signal_exists(self, mock_presenter_cls: MagicMock) -> None:
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+        assert hasattr(tm, "close_guard_requested")
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_close_tab_emits_guard_when_dirty(self, mock_presenter_cls: MagicMock) -> None:
+        mock_presenter = MagicMock()
+        model = _make_model(Path("/tmp/test.pdf"))
+        model.dirty = True
+        mock_presenter.model = model
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+
+        tm.open_file(Path("/tmp/test.pdf"))
+        sid = next(iter(tm._tabs))
+
+        signals: list[str] = []
+        tm.close_guard_requested.connect(signals.append)
+        tm.close_tab(sid)
+        assert signals == [sid]
+        # Tab should still be open
+        assert sid in tm._tabs
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_close_tab_no_guard_when_clean(self, mock_presenter_cls: MagicMock) -> None:
+        mock_presenter = MagicMock()
+        model = _make_model(Path("/tmp/test.pdf"))
+        model.dirty = False
+        mock_presenter.model = model
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+
+        tm.open_file(Path("/tmp/test.pdf"))
+        sid = next(iter(tm._tabs))
+
+        signals: list[str] = []
+        tm.close_guard_requested.connect(signals.append)
+        tm.close_tab(sid)
+        assert signals == []
+        # Tab should be closed
+        assert sid not in tm._tabs
+
+    @patch("k_pdf.presenters.tab_manager.DocumentPresenter")
+    def test_force_close_tab_closes_dirty(self, mock_presenter_cls: MagicMock) -> None:
+        mock_presenter = MagicMock()
+        model = _make_model(Path("/tmp/test.pdf"))
+        model.dirty = True
+        mock_presenter.model = model
+        mock_presenter_cls.return_value = mock_presenter
+        tab_widget = QTabWidget()
+        recent = MagicMock()
+        tm = TabManager(tab_widget=tab_widget, recent_files=recent)
+
+        tm.open_file(Path("/tmp/test.pdf"))
+        sid = next(iter(tm._tabs))
+        tm.force_close_tab(sid)
+        assert sid not in tm._tabs
