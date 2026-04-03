@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations)
-- **Features remaining:** Features 8-12 + 7 implicit (see MVP Cutline)
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save)
+- **Features remaining:** Features 9-12 + 7 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 7 complete — ToolMode enum (NONE/TEXT_SELECT/STICKY_NOTE/TEXT_BOX) in annotation_model, AnnotationEngine extended with add_sticky_note/add_text_box/update_annotation_content/get_annotation_content/get_annotation_type (all xref-safe), NoteEditor floating widget with Save/Cancel/Escape/empty-confirmation, AnnotationPresenter extended with set_tool_mode/on_note_placed/on_textbox_drawn/on_annotation_double_clicked/editing_finished/editing_cancelled, PdfViewport set_tool_mode with click-to-place/drag-to-draw/double-click-edit/textbox-preview, MainWindow QActionGroup exclusive tool modes, KPdfApp full wiring
+- **Last session summary:** Feature 8 complete — FormFieldType/FormFieldDescriptor in form_model, FormEngine (detect_fields/is_xfa_form/write_fields/save_document/get_field_value), FormPresenter (on_document_opened/on_field_changed/save/save_as/on_tab_closed), MainWindow Save/Save As actions (Ctrl+S/Ctrl+Shift+S), TabManager dirty close guard with close_guard_requested/force_close_tab, PdfViewport form overlay methods (add_form_overlay/remove_form_overlays), KPdfApp full wiring with Save/Discard/Cancel dialog, status bar form field count, XFA detection notification
 
 Update this section at the end of every session.
 
