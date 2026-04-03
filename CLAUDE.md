@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Features 1-12 (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary)
-- **Features remaining:** 7 implicit (see MVP Cutline)
+- **Features built:** Features 1-12 + Text Copy (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Text Copy)
+- **Features remaining:** 6 implicit (Undo/Redo, Keyboard Shortcuts, Preferences, Printing, Save As, Recent Files)
 - **Known issues:** Coverage at 84%+ (threshold 65%)
-- **Last session summary:** Merged feature/dark-mode into main — resolved conflicts from parallel F10/F11/F12 development. All explicit features complete.
+- **Last session summary:** Implemented Text Copy implicit feature — Ctrl+C copies selected text to clipboard, Ctrl+A selects all text on current page, Edit menu Copy/Select All actions, status bar feedback.
 
 Update this section at the end of every session.
 
