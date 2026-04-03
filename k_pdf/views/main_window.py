@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from k_pdf.views.annotation_panel import AnnotationSummaryPanel
+from k_pdf.views.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 from k_pdf.views.navigation_panel import NavigationPanel
 from k_pdf.views.page_manager_panel import PageManagerPanel
 from k_pdf.views.search_bar import SearchBar
@@ -373,6 +374,35 @@ class MainWindow(QMainWindow):
         self._text_box_action.toggled.connect(self.text_box_toggled.emit)
         self._tool_action_group.addAction(self._text_box_action)
         self._tools_menu.addAction(self._text_box_action)
+
+        # Help menu
+        self._help_menu = menu_bar.addMenu("&Help")
+
+        shortcuts_action = QAction("Keyboard &Shortcuts", self)
+        shortcuts_action.setShortcut(QKeySequence("F1"))
+        shortcuts_action.triggered.connect(self._show_keyboard_shortcuts)
+        self._help_menu.addAction(shortcuts_action)
+
+        self._help_menu.addSeparator()
+
+        about_action = QAction("&About K-PDF", self)
+        about_action.triggered.connect(self._show_about)
+        self._help_menu.addAction(about_action)
+
+    def _show_keyboard_shortcuts(self) -> None:
+        """Open the Keyboard Shortcuts reference dialog."""
+        dialog = KeyboardShortcutsDialog(self)
+        dialog.exec()
+
+    def _show_about(self) -> None:
+        """Show the About K-PDF dialog."""
+        from k_pdf import __version__
+
+        QMessageBox.about(
+            self,
+            "About K-PDF",
+            f"K-PDF v{__version__}\n\nFree, offline, cross-platform PDF reader and editor.",
+        )
 
     def _show_search_bar(self) -> None:
         """Show the search bar and focus the input field."""
