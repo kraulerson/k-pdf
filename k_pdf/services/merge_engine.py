@@ -150,7 +150,8 @@ class MergeEngine:
 
             try:
                 if source_doc.needs_pass:
-                    logger.warning("Skipping password-protected %s", source_path.name)
+                    # nosemgrep: python-logger-credential-disclosure (logs filename, not a password)
+                    logger.warning("Skipping encrypted file %s", source_path.name)
                     skipped.append(source_path.name)
                     source_doc.close()
                     if progress_callback is not None:
