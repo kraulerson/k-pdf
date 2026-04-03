@@ -16,6 +16,7 @@ from PySide6.QtGui import QImage, QPixmap
 
 from k_pdf.core.document_model import DocumentModel
 from k_pdf.core.page_cache import PageCache
+from k_pdf.core.zoom_model import FitMode, ZoomState
 from k_pdf.services.pdf_engine import OpenResult, PdfEngine
 from k_pdf.services.pdf_errors import (
     PageRenderError,
@@ -90,6 +91,8 @@ class DocumentPresenter(QObject):
     page_pixmap_ready = Signal(int, object)  # (page_index, QPixmap)
     page_error = Signal(int)  # page_index
     status_message = Signal(str)
+    zoom_changed = Signal(float)  # emitted after zoom level changes
+    rotation_changed = Signal(int)  # emitted after rotation changes
 
     def __init__(self, parent: QObject | None = None) -> None:
         """Initialize the presenter with worker thread and page cache."""
@@ -98,8 +101,7 @@ class DocumentPresenter(QObject):
         self._model: DocumentModel | None = None
         self._cache = PageCache()
         self._pending_renders: set[int] = set()
-        self._zoom = 1.0
-        self._rotation = 0
+        self._zoom_state = ZoomState()
 
         # Worker thread setup
         self._thread = QThread()
@@ -126,6 +128,21 @@ class DocumentPresenter(QObject):
     def cache(self) -> PageCache:
         """Return the page cache."""
         return self._cache
+
+    @property
+    def zoom(self) -> float:
+        """Return the current zoom level."""
+        return self._zoom_state.zoom
+
+    @property
+    def rotation(self) -> int:
+        """Return the current rotation in degrees."""
+        return self._zoom_state.rotation
+
+    @property
+    def fit_mode(self) -> FitMode:
+        """Return the current fit mode."""
+        return self._zoom_state.fit_mode
 
     def open_file(self, path: Path) -> None:
         """Start the file-open flow.
@@ -165,7 +182,81 @@ class DocumentPresenter(QObject):
                 self._pending_renders.add(idx)
 
         if to_render:
-            self._worker.render_pages(self._model.doc_handle, to_render, self._zoom, self._rotation)
+            self._worker.render_pages(
+                self._model.doc_handle,
+                to_render,
+                self._zoom_state.zoom,
+                self._zoom_state.rotation,
+            )
+
+    def set_zoom(self, zoom: float) -> None:
+        """Set the zoom level, clamp, clear fit mode, invalidate cache, re-render.
+
+        Emits zoom_changed if the value actually changed.
+
+        Args:
+            zoom: Desired zoom level (1.0 = 100%).
+        """
+        clamped = self._zoom_state.clamp_zoom(zoom)
+        if clamped == self._zoom_state.zoom:
+            return
+        self._zoom_state.zoom = clamped
+        self._zoom_state.fit_mode = FitMode.NONE
+        self._cache.invalidate()
+        self._pending_renders.clear()
+        self.zoom_changed.emit(clamped)
+
+    def set_rotation(self, rotation: int) -> None:
+        """Set the rotation, normalize, invalidate cache, re-render.
+
+        Emits rotation_changed if the value actually changed.
+
+        Args:
+            rotation: Desired rotation in degrees (any integer).
+        """
+        normalized = self._zoom_state.normalize_rotation(rotation)
+        if normalized == self._zoom_state.rotation:
+            return
+        self._zoom_state.rotation = normalized
+        self._cache.invalidate()
+        self._pending_renders.clear()
+        self.rotation_changed.emit(normalized)
+
+    def set_fit_mode(self, mode: FitMode, viewport_width: float, viewport_height: float) -> None:
+        """Set a fit mode and calculate zoom from viewport and page dimensions.
+
+        Emits zoom_changed if the calculated zoom differs from current.
+        Does nothing if mode is NONE or no document is loaded.
+
+        Args:
+            mode: The fit mode to apply.
+            viewport_width: Current viewport width in pixels.
+            viewport_height: Current viewport height in pixels.
+        """
+        if mode is FitMode.NONE or self._model is None or not self._model.pages:
+            return
+
+        page = self._model.pages[0]
+        # Account for rotation: swap width/height at 90/270 degrees
+        if self._zoom_state.rotation in (90, 270):
+            page_w = page.height
+            page_h = page.width
+        else:
+            page_w = page.width
+            page_h = page.height
+
+        if mode is FitMode.PAGE:
+            new_zoom = min(viewport_width / page_w, viewport_height / page_h)
+        else:  # FitMode.WIDTH
+            new_zoom = viewport_width / page_w
+
+        new_zoom = self._zoom_state.clamp_zoom(new_zoom)
+        self._zoom_state.fit_mode = mode
+        if new_zoom != self._zoom_state.zoom:
+            self._zoom_state.zoom = new_zoom
+            self._cache.invalidate()
+            self._pending_renders.clear()
+            self.zoom_changed.emit(new_zoom)
 
     def shutdown(self) -> None:
         """Stop the worker thread and clean up."""
