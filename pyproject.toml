@@ -89,6 +89,10 @@ module = ["k_pdf.services.annotation_engine"]
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
+module = ["k_pdf.services.form_engine"]
+disable_error_code = ["no-untyped-call", "attr-defined"]
+
+[[tool.mypy.overrides]]
 module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor"]
 disable_error_code = ["misc"]
 

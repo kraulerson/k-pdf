@@ -138,3 +138,41 @@ def annotatable_pdf(tmp_path: Path) -> Path:
     doc.save(str(path))
     doc.close()
     return path
+
+
+@pytest.fixture
+def form_pdf(tmp_path: Path) -> Path:
+    """Create a PDF with AcroForm text, checkbox, and dropdown fields."""
+    path = tmp_path / "form.pdf"
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text(pymupdf.Point(72, 50), "Form Test Document")
+
+    # Text field
+    widget = pymupdf.Widget()
+    widget.field_name = "full_name"
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+    widget.rect = pymupdf.Rect(72, 100, 300, 120)
+    widget.field_value = ""
+    page.add_widget(widget)
+
+    # Checkbox
+    widget2 = pymupdf.Widget()
+    widget2.field_name = "agree"
+    widget2.field_type = pymupdf.PDF_WIDGET_TYPE_CHECKBOX
+    widget2.rect = pymupdf.Rect(72, 140, 92, 160)
+    widget2.field_value = "Off"
+    page.add_widget(widget2)
+
+    # Dropdown / Choice
+    widget3 = pymupdf.Widget()
+    widget3.field_name = "country"
+    widget3.field_type = pymupdf.PDF_WIDGET_TYPE_COMBOBOX
+    widget3.rect = pymupdf.Rect(72, 180, 300, 200)
+    widget3.choice_values = ["USA", "Canada", "Mexico"]
+    widget3.field_value = "USA"
+    page.add_widget(widget3)
+
+    doc.save(str(path))
+    doc.close()
+    return path
