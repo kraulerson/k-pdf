@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save)
-- **Features remaining:** Features 9-12 + 7 implicit (see MVP Cutline)
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management)
+- **Features remaining:** Features 10-12 + 7 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 8 complete — FormFieldType/FormFieldDescriptor in form_model, FormEngine (detect_fields/is_xfa_form/write_fields/save_document/get_field_value), FormPresenter (on_document_opened/on_field_changed/save/save_as/on_tab_closed), MainWindow Save/Save As actions (Ctrl+S/Ctrl+Shift+S), TabManager dirty close guard with close_guard_requested/force_close_tab, PdfViewport form overlay methods (add_form_overlay/remove_form_overlays), KPdfApp full wiring with Save/Discard/Cancel dialog, status bar form field count, XFA detection notification
+- **Last session summary:** Feature 9 complete — PageOperation/PageOperationResult in page_model, PageEngine (delete_pages/move_page/rotate_pages/insert_pages_from/render_thumbnail/get_page_count), PageManagementPresenter (rotate_pages/delete_pages/insert_pages/move_page/on_tab_switched/on_tab_closed with dirty flag coordination), PageManagerPanel QDockWidget (thumbnail grid with multi-select, toolbar with Rotate Left/Right "(modifies file)", Delete Pages, Add Pages), MainWindow Page Manager dock (F7 toggle in View menu), KPdfApp full wiring with file picker for Add Pages, viewport re-render on page changes. Feature 5 rotation = view-only (Ctrl+R); Feature 9 rotation = modifies PDF /Rotate attribute.
 
 Update this section at the end of every session.
 
