@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Features 1-12 (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary)
-- **Features remaining:** 7 implicit (see MVP Cutline)
+- **Features built:** Features 1-12 (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary) + Printing (implicit)
+- **Features remaining:** 6 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 84%+ (threshold 65%)
-- **Last session summary:** Merged feature/dark-mode into main — resolved conflicts from parallel F10/F11/F12 development. All explicit features complete.
+- **Last session summary:** Implemented Printing (Ctrl+P) implicit feature — PrintService renders pages at 300 DPI to QPrinter via QPainter. File > Print... action with full page range support. 754 tests, 84% coverage.
 
 Update this section at the end of every session.
 
