@@ -226,7 +226,7 @@ jobs:
           find MacOS -name '*.so' -exec codesign --force --sign - {} \; 2>/dev/null || true
           codesign --force --sign - MacOS/main
           cd ../../..
-          codesign --force --deep --sign - build/main.app
+          codesign --force --sign - build/main.app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

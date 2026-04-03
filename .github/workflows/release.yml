@@ -147,9 +147,9 @@ jobs:
           find MacOS -name '*.so' -exec codesign --force --sign - {} \; 2>/dev/null || true
           codesign --force --sign - MacOS/main
           cd ../../..
-          codesign --force --deep --sign - build/main.app
-          echo "Bundle signed. Verifying..."
-          codesign --verify --deep --strict build/main.app && echo "Signature valid" || echo "Signature issues found"
+          # Sign the bundle itself (without --deep to avoid .py files)
+          codesign --force --sign - build/main.app
+          echo "Bundle signed."
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
