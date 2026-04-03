@@ -142,14 +142,28 @@ jobs:
           done
           install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
 
-          # Sign inside-out: individual libs, then binary, then bundle
+          # Sign every Mach-O binary (dylibs, .so files, main executable)
           find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
-          find MacOS -name '*.so' -exec codesign --force --sign - {} \; 2>/dev/null || true
+          find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
           codesign --force --sign - MacOS/main
+
+          # Move Python packages out of MacOS to avoid codesign scanning .py files
+          # Put them in Resources and create a sys.path hook
+          mkdir -p Resources/python-packages
+          mv MacOS/pymupdf Resources/python-packages/ 2>/dev/null || true
+          mv MacOS/fitz Resources/python-packages/ 2>/dev/null || true
+
+          # Create a sitecustomize.py that adds Resources/python-packages to sys.path
+          cat > MacOS/sitecustomize.py << 'PYEOF'
+          import sys, os
+          pkg_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Resources", "python-packages")
+          if pkg_dir not in sys.path:
+              sys.path.insert(0, pkg_dir)
+          PYEOF
+
           cd ../../..
-          # Sign the bundle itself (without --deep to avoid .py files)
           codesign --force --sign - build/main.app
-          echo "Bundle signed."
+          echo "Bundle signed successfully."
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
