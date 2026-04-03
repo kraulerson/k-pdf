@@ -633,3 +633,44 @@ class TestKPdfAppIntegration:
         kpdf.window.zoom_reset_triggered.emit()
         mock_presenter.set_zoom.assert_called_once_with(1.0)
         kpdf.shutdown()
+
+
+class TestMainWindowToolsMenu:
+    def test_tools_menu_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert window.tools_menu is not None
+
+    def test_text_selection_action_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        actions = window.tools_menu.actions()
+        names = [a.text() for a in actions]
+        assert any("Text Selection" in n for n in names)
+
+    def test_text_selection_action_is_checkable(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        actions = window.tools_menu.actions()
+        sel_action = next(a for a in actions if "Text Selection" in a.text())
+        assert sel_action.isCheckable()
+
+    def test_text_selection_toggle_emits_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        with qtbot.waitSignal(window.text_selection_toggled, timeout=1000):  # type: ignore[union-attr]
+            actions = window.tools_menu.actions()
+            sel_action = next(a for a in actions if "Text Selection" in a.text())
+            sel_action.trigger()
+
+    def test_text_selection_shortcut_is_ctrl_t(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        actions = window.tools_menu.actions()
+        sel_action = next(a for a in actions if "Text Selection" in a.text())
+        assert sel_action.shortcut().toString() == "Ctrl+T"

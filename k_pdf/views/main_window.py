@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QPushButton,
     QStackedWidget,
@@ -75,6 +76,7 @@ class MainWindow(QMainWindow):
     zoom_reset_triggered = Signal()
     rotate_cw_triggered = Signal()
     rotate_ccw_triggered = Signal()
+    text_selection_toggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -162,6 +164,11 @@ class MainWindow(QMainWindow):
         """Return the zoom toolbar widget."""
         return self._zoom_toolbar
 
+    @property
+    def tools_menu(self) -> QMenu:
+        """Return the Tools menu."""
+        return self._tools_menu
+
     def _setup_menus(self) -> None:
         """Create the menu bar with File > Open, Close Tab, and Quit."""
         menu_bar = self.menuBar()
@@ -237,6 +244,16 @@ class MainWindow(QMainWindow):
         zoom_reset_action.setToolTip("Reset zoom to 100%")
         zoom_reset_action.triggered.connect(self.zoom_reset_triggered.emit)
         view_menu.addAction(zoom_reset_action)
+
+        # Tools menu
+        self._tools_menu = menu_bar.addMenu("&Tools")
+
+        text_select_action = QAction("&Text Selection Mode", self)
+        text_select_action.setShortcut(QKeySequence("Ctrl+T"))
+        text_select_action.setCheckable(True)
+        text_select_action.setToolTip("Toggle text selection for annotations")
+        text_select_action.toggled.connect(self.text_selection_toggled.emit)
+        self._tools_menu.addAction(text_select_action)
 
     def _show_search_bar(self) -> None:
         """Show the search bar and focus the input field."""
