@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from k_pdf.views.annotation_panel import AnnotationSummaryPanel
 from k_pdf.views.navigation_panel import NavigationPanel
 from k_pdf.views.page_manager_panel import PageManagerPanel
 from k_pdf.views.search_bar import SearchBar
@@ -135,6 +136,11 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._page_manager_panel)
         self._page_manager_panel.hide()
 
+        # Annotation Summary panel (right dock)
+        self._annotation_summary_panel = AnnotationSummaryPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._annotation_summary_panel)
+        self._annotation_summary_panel.hide()
+
         # Status bar
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -179,6 +185,11 @@ class MainWindow(QMainWindow):
     def page_manager_panel(self) -> PageManagerPanel:
         """Return the page manager dock widget."""
         return self._page_manager_panel
+
+    @property
+    def annotation_summary_panel(self) -> AnnotationSummaryPanel:
+        """Return the annotation summary panel dock widget."""
+        return self._annotation_summary_panel
 
     @property
     def tools_menu(self) -> QMenu:
@@ -247,6 +258,11 @@ class MainWindow(QMainWindow):
         toggle_nav.setText("Navigation &Panel")
         toggle_nav.setShortcut(QKeySequence("F5"))
         view_menu.addAction(toggle_nav)
+
+        toggle_ann_panel = self._annotation_summary_panel.toggleViewAction()
+        toggle_ann_panel.setText("Annotation &Panel")
+        toggle_ann_panel.setShortcut(QKeySequence("F6"))
+        view_menu.addAction(toggle_ann_panel)
 
         toggle_page_mgr = self._page_manager_panel.toggleViewAction()
         toggle_page_mgr.setText("Page &Manager")

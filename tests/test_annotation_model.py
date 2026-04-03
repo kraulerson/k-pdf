@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from k_pdf.core.annotation_model import AnnotationData, AnnotationType
+from k_pdf.core.annotation_model import AnnotationData, AnnotationInfo, AnnotationType
 
 
 class TestAnnotationType:
@@ -113,3 +113,33 @@ class TestAnnotationData:
             rect=(100.0, 200.0, 300.0, 250.0),
         )
         assert data.rect == (100.0, 200.0, 300.0, 250.0)
+
+
+class TestAnnotationInfo:
+    def test_construction_all_fields(self) -> None:
+        info = AnnotationInfo(
+            page=2,
+            ann_type="Highlight",
+            author="Karl",
+            content="Important text",
+            color=(1.0, 1.0, 0.0),
+            rect=(72.0, 100.0, 300.0, 120.0),
+        )
+        assert info.page == 2
+        assert info.ann_type == "Highlight"
+        assert info.author == "Karl"
+        assert info.content == "Important text"
+        assert info.color == (1.0, 1.0, 0.0)
+        assert info.rect == (72.0, 100.0, 300.0, 120.0)
+
+    def test_default_values(self) -> None:
+        info = AnnotationInfo(page=0, ann_type="Note")
+        assert info.author == ""
+        assert info.content == ""
+        assert info.color == (0.0, 0.0, 0.0)
+        assert info.rect == (0.0, 0.0, 0.0, 0.0)
+
+    def test_different_types(self) -> None:
+        for ann_type in ("Highlight", "Underline", "Strikethrough", "Note", "Text Box"):
+            info = AnnotationInfo(page=0, ann_type=ann_type)
+            assert info.ann_type == ann_type

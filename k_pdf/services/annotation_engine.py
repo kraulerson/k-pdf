@@ -7,7 +7,7 @@ No other layer imports fitz/pymupdf directly for annotations.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, ClassVar
 
 import pymupdf
 
@@ -292,6 +292,64 @@ class AnnotationEngine:
             if page_annot.xref == target_xref:
                 return page_annot.type  # type: ignore[no-any-return]
         return (0, "Text")
+
+    # PyMuPDF annotation type code -> human-readable label
+    _TYPE_MAP: ClassVar[dict[int, str]] = {
+        8: "Highlight",
+        9: "Underline",
+        11: "Strikethrough",
+        0: "Note",
+        2: "Text Box",
+    }
+
+    def get_annotation_info(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        annot: Any,
+    ) -> dict[str, Any]:
+        """Extract annotation metadata in a single call.
+
+        Re-fetches the annotation by xref to avoid stale-reference errors.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            annot: The pymupdf.Annot (used for xref lookup).
+
+        Returns:
+            Dict with keys: type_code, type_name, author, content, color, rect.
+        """
+        page = doc_handle[page_index]
+        target_xref = annot.xref
+        for page_annot in page.annots():
+            if page_annot.xref == target_xref:
+                type_code, _type_label = page_annot.type
+                type_name = self._TYPE_MAP.get(type_code, "Unknown")
+                info = page_annot.info
+                colors = page_annot.colors
+                stroke = colors.get("stroke")
+                fill = colors.get("fill")
+                color = stroke if stroke else (fill if fill else (0.0, 0.0, 0.0))
+                if color and not isinstance(color, tuple):
+                    color = tuple(color)
+                r = page_annot.rect
+                return {
+                    "type_code": type_code,
+                    "type_name": type_name,
+                    "author": str(info.get("title", "")),
+                    "content": str(info.get("content", "")),
+                    "color": color,
+                    "rect": (r.x0, r.y0, r.x1, r.y1),
+                }
+        return {
+            "type_code": 0,
+            "type_name": "Unknown",
+            "author": "",
+            "content": "",
+            "color": (0.0, 0.0, 0.0),
+            "rect": (0.0, 0.0, 0.0, 0.0),
+        }
 
     def rects_to_quads(self, rects: list[tuple[float, float, float, float]]) -> list[Any]:
         """Convert word bounding-box rectangles to quad points.

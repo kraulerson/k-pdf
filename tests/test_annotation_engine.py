@@ -238,3 +238,75 @@ class TestGetAnnotationContent:
         content = engine.get_annotation_content(doc, 0, annot)
         assert content == ""
         doc.close()
+
+
+class TestGetAnnotationInfo:
+    def test_highlight_info(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        page = doc[0]
+        words = page.get_text("words")
+        quads = [pymupdf.Rect(*w[:4]).quad for w in words[:2]]
+        annot = page.add_highlight_annot(quads=quads)
+        annot.set_colors(stroke=(1.0, 1.0, 0.0))
+        annot.set_info(title="TestAuthor")
+        annot.update()
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert info["type_name"] == "Highlight"
+        assert info["author"] == "TestAuthor"
+        assert info["color"] is not None
+        doc.close()
+
+    def test_underline_info(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        page = doc[0]
+        words = page.get_text("words")
+        quads = [pymupdf.Rect(*w[:4]).quad for w in words[:2]]
+        annot = page.add_underline_annot(quads=quads)
+        annot.update()
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert info["type_name"] == "Underline"
+        doc.close()
+
+    def test_strikeout_info(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        page = doc[0]
+        words = page.get_text("words")
+        quads = [pymupdf.Rect(*w[:4]).quad for w in words[:2]]
+        annot = page.add_strikeout_annot(quads=quads)
+        annot.update()
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert info["type_name"] == "Strikethrough"
+        doc.close()
+
+    def test_sticky_note_info(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = doc[0].add_text_annot((72, 72), "Test note", icon="Note")
+        annot.set_info(title="NoteAuthor")
+        annot.update()
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert info["type_name"] == "Note"
+        assert info["content"] == "Test note"
+        assert info["author"] == "NoteAuthor"
+        doc.close()
+
+    def test_freetext_info(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = doc[0].add_freetext_annot((72, 200, 300, 240), "Box text", fontsize=11)
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert info["type_name"] == "Text Box"
+        assert info["content"] == "Box text"
+        doc.close()
+
+    def test_info_has_rect(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = doc[0].add_text_annot((72, 72), "Note")
+        info = engine.get_annotation_info(doc, 0, annot)
+        assert "rect" in info
+        assert len(info["rect"]) == 4
+        doc.close()

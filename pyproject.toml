@@ -101,8 +101,8 @@ module = ["k_pdf.services.merge_engine"]
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
-module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel", "k_pdf.views.merge_dialog"]
-disable_error_code = ["misc"]
+module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel", "k_pdf.views.merge_dialog", "k_pdf.views.annotation_panel"]
+disable_error_code = ["misc", "no-any-return", "unused-ignore"]
 
 [[tool.mypy.overrides]]
 module = ["k_pdf.presenters.document_presenter"]
@@ -130,6 +130,10 @@ disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
 module = ["k_pdf.presenters.page_management_presenter"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["k_pdf.presenters.annotation_summary_presenter"]
 disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]

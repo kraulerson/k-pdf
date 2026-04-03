@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management), Feature 10 (Merge Multiple PDFs)
-- **Features remaining:** Features 11-12 + 7 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 10 complete — MergeEngine service (probe_file/merge with MergeFileInfo/MergeResult dataclasses, wraps PyMuPDF insert_pdf, handles corrupt/password-protected/unreadable files with skip tracking and progress callbacks), MergeDialog self-contained modal QDialog (QListWidget with drag-to-reorder, Add Files/Remove Selected buttons, page count per file, error file text indicators, merge button disabled until >= 2 valid files, progress bar, Open Merged File button), MainWindow File menu "Merge Documents..." action (Ctrl+Shift+M), KPdfApp wiring (merge_requested -> MergeDialog modal -> merge_complete -> TabManager.open_file).
+- **Features built:** Features 1-10, 12 (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Annotation Summary)
+- **Features remaining:** Feature 11 (Dark Mode) + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 80%+ (threshold 65%)
+- **Last session summary:** Features 10 + 12 merged. Awaiting Feature 11 (Dark Mode).
 
 Update this section at the end of every session.
 

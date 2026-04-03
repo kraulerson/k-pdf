@@ -53,3 +53,24 @@ class AnnotationData:
     created_at: datetime = field(default_factory=datetime.now)
     content: str = ""
     rect: tuple[float, float, float, float] | None = None
+
+
+@dataclass
+class AnnotationInfo:
+    """Summary info for an annotation displayed in the summary panel.
+
+    Attributes:
+        page: Zero-based page index.
+        ann_type: Human-readable type label (e.g. "Highlight", "Note").
+        author: Author name from annotation metadata.
+        content: Text content for notes/text boxes.
+        color: RGB color as 0.0-1.0 floats.
+        rect: Bounding rectangle (x0, y0, x1, y1).
+    """
+
+    page: int
+    ann_type: str
+    author: str = ""
+    content: str = ""
+    color: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    rect: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0)
