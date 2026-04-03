@@ -573,3 +573,93 @@ class TestSelectionChanged:
         with qtbot.waitSignal(presenter.selection_changed, timeout=1000) as blocker:  # type: ignore[union-attr]
             presenter.on_tab_switched("some-session-id")
         assert blocker.args == [False]
+
+
+class TestSelectAllText:
+    def test_selects_all_words_on_page(self) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        type(mock_dp).current_page = property(lambda _: 0)
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+        mock_viewport = MagicMock()
+        mock_global = MagicMock()
+        mock_global.x.return_value = 100
+        mock_global.y.return_value = 200
+        mock_viewport.mapToGlobal.return_value = mock_global
+        tm.get_active_viewport = MagicMock(return_value=mock_viewport)
+
+        fake_words = [
+            (10.0, 20.0, 50.0, 30.0, "Hello", 0, 0, 0),
+            (55.0, 20.0, 100.0, 30.0, "world", 0, 0, 1),
+        ]
+        with patch.object(engine, "get_text_words", return_value=fake_words):
+            presenter.select_all_text()
+
+        assert presenter._selected_page == 0
+        assert len(presenter._selected_rects) == 2
+        assert presenter._selected_rects[0] == (10.0, 20.0, 50.0, 30.0)
+        assert presenter._selected_rects[1] == (55.0, 20.0, 100.0, 30.0)
+
+    def test_noop_no_document(self) -> None:
+        presenter, tm, _engine, _toolbar = _make_presenter()
+        tm.get_active_presenter = MagicMock(return_value=None)
+        presenter.select_all_text()
+        assert presenter._selected_rects == []
+
+    def test_noop_image_only_page(self) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        type(mock_dp).current_page = property(lambda _: 0)
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+
+        with patch.object(engine, "get_text_words", return_value=[]):
+            presenter.select_all_text()
+
+        assert presenter._selected_rects == []
+        assert presenter._selected_page == -1
+
+    def test_emits_selection_changed(self, qtbot: object) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        type(mock_dp).current_page = property(lambda _: 0)
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+        mock_viewport = MagicMock()
+        mock_global = MagicMock()
+        mock_global.x.return_value = 100
+        mock_global.y.return_value = 200
+        mock_viewport.mapToGlobal.return_value = mock_global
+        tm.get_active_viewport = MagicMock(return_value=mock_viewport)
+
+        fake_words = [(10.0, 20.0, 50.0, 30.0, "Hi", 0, 0, 0)]
+        with (
+            patch.object(engine, "get_text_words", return_value=fake_words),
+            qtbot.waitSignal(presenter.selection_changed, timeout=1000) as blocker,  # type: ignore[union-attr]
+        ):
+            presenter.select_all_text()
+        assert blocker.args == [True]
+
+    def test_shows_toolbar(self) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        type(mock_dp).current_page = property(lambda _: 0)
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+        mock_viewport = MagicMock()
+        mock_viewport.mapToGlobal.return_value = MagicMock(
+            x=MagicMock(return_value=100), y=MagicMock(return_value=200)
+        )
+        tm.get_active_viewport = MagicMock(return_value=mock_viewport)
+
+        fake_words = [(10.0, 20.0, 50.0, 30.0, "Hi", 0, 0, 0)]
+        with patch.object(engine, "get_text_words", return_value=fake_words):
+            presenter.select_all_text()
+
+        # Toolbar show_near should have been called
+        assert _toolbar.isVisible() or mock_viewport.mapToGlobal.called

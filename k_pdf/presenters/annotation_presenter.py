@@ -107,6 +107,37 @@ class AnnotationPresenter(QObject):
 
         return text
 
+    def select_all_text(self) -> None:
+        """Select all text on the current page.
+
+        Gets all word rects from the annotation engine for the current page
+        and stores them as the active selection. Emits selection_changed and
+        shows the annotation toolbar.
+        """
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is None or doc_presenter.model is None:
+            return
+
+        model = doc_presenter.model
+        page_index: int = doc_presenter.current_page
+
+        words = self._engine.get_text_words(model.doc_handle, page_index)
+        if not words:
+            return
+
+        rects = [(w[0], w[1], w[2], w[3]) for w in words]
+        self._selected_page = page_index
+        self._selected_rects = rects
+        self.selection_changed.emit(True)
+
+        # Show toolbar near the selection
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            global_pos = viewport.mapToGlobal(viewport.rect().center())
+            self._toolbar.show_near(global_pos.x(), global_pos.y() - 60)
+
+        logger.debug("Selected all %d words on page %d", len(rects), page_index)
+
     def set_tool_mode(self, mode: ToolMode) -> None:
         """Set the active tool mode.
 
