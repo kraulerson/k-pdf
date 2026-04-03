@@ -1,114 +1,26 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    tags: ["v*"]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  lint:
-    name: Lint & Type Check
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.11"
-
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Ruff check
-        run: uv run ruff check .
-
-      - name: Ruff format check
-        run: uv run ruff format --check .
-
-      - name: Mypy strict
-        run: uv run mypy k_pdf/
-
-  test:
-    name: Test (${{ matrix.os }})
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, windows-latest, macos-latest]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.11"
-
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install Qt dependencies (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libegl1 libxkbcommon0
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Run tests with coverage
-        run: uv run pytest --cov=k_pdf --cov-report=term-missing --cov-fail-under=80
-        env:
-          QT_QPA_PLATFORM: offscreen
-
-  security:
-    name: Security Scans
-    runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
-        with:
-          version: "0.11"
-
-      - name: Set up Python 3.13
-        run: uv python install 3.13
-
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Semgrep SAST scan
-        run: |
-          pip install semgrep
-          semgrep scan --config auto k_pdf/ --error
-
-      - name: pip-audit (dependency vulnerabilities)
-        run: uv run pip-audit
-
-      - name: pip-licenses (license compliance)
-        run: uv run pip-licenses --order=license
-
-      - name: Gitleaks (secret detection)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
   build:
     name: Build (${{ matrix.os }})
-    needs: [lint, test, security]
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-22.04
+            artifact: K-PDF-linux
+          - os: windows-latest
+            artifact: K-PDF-windows
+          - os: macos-latest
+            artifact: K-PDF-macos
     steps:
       - uses: actions/checkout@v4
 
@@ -126,6 +38,11 @@ jobs:
 
       - name: Install dependencies
         run: uv sync
+
+      - name: Extract version from tag
+        id: version
+        shell: bash
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       - name: Nuitka build (standalone)
         shell: bash
@@ -136,7 +53,7 @@ jobs:
             --output-dir=build
             --enable-plugin=pyside6
             --product-name=K-PDF
-            --product-version=0.1.0
+            --product-version=${{ steps.version.outputs.version }}
             --file-description="K-PDF - Free PDF Reader and Editor"
             # Exclude pymupdf/fitz from Nuitka C compilation entirely.
             # PyMuPDF's mupdf.py (2.5 MB SWIG binding) generates a C file
@@ -210,9 +127,67 @@ jobs:
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
 
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          cd build
+          tar -czf "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz" main.dist/
+          ls -lh "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz"
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd build
+          # Create a DMG from the .app bundle
+          hdiutil create -volname "K-PDF" \
+            -srcfolder main.app \
+            -ov -format UDZO \
+            "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
+          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          cd build
+          Compress-Archive -Path main.dist\* -DestinationPath "K-PDF-${{ steps.version.outputs.version }}-windows.zip"
+          Get-ChildItem "K-PDF-${{ steps.version.outputs.version }}-windows.zip"
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: k-pdf-${{ matrix.os }}
-          path: build/
+          name: ${{ matrix.artifact }}
+          path: |
+            build/K-PDF-*.tar.gz
+            build/K-PDF-*.dmg
+            build/K-PDF-*.zip
           retention-days: 7
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: List artifacts
+        run: find artifacts/ -type f | head -20
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "K-PDF v${{ steps.version.outputs.version }}"
+          generate_release_notes: true
+          files: |
+            artifacts/K-PDF-linux/K-PDF-*.tar.gz
+            artifacts/K-PDF-macos/K-PDF-*.dmg
+            artifacts/K-PDF-windows/K-PDF-*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
