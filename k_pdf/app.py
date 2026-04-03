@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QTimer
+from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
@@ -27,6 +28,8 @@ from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.services.form_engine import FormEngine
 from k_pdf.services.page_engine import PageEngine
+from k_pdf.services.pdf_engine import PdfEngine
+from k_pdf.services.print_service import PrintService
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
@@ -84,6 +87,8 @@ class KPdfApp:
             panel=self._window.annotation_summary_panel,
         )
         self._theme_manager = ThemeManager(app)
+        self._pdf_engine = PdfEngine()
+        self._print_service = PrintService()
         self._initial_file = file_path
 
         self._connect_signals()
@@ -140,6 +145,7 @@ class KPdfApp:
         self._window.tab_close_requested.connect(self._on_close_current_tab)
         self._window.password_submitted.connect(self._on_password_submitted)
         self._window.merge_requested.connect(self._on_merge_requested)
+        self._window.print_requested.connect(self._on_print_requested)
 
         # TabManager → View
         self._tab_manager.error_occurred.connect(self._window.show_error)
@@ -272,6 +278,9 @@ class KPdfApp:
         self._annotation_presenter.annotation_deleted.connect(asp.refresh_annotations)
         self._window.annotation_summary_panel.annotation_clicked.connect(asp.on_annotation_clicked)
 
+        # Print wiring
+        self._tab_manager.document_ready.connect(self._on_document_ready_print)
+
     def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
         """Wire annotation summary panel for a newly loaded document."""
         from k_pdf.core.document_model import DocumentModel
@@ -283,6 +292,7 @@ class KPdfApp:
         """Toggle between welcome screen and tab view."""
         if count == 0:
             self._window.show_welcome()
+            self._window.set_print_enabled(False)
         else:
             self._window.show_tabs()
 
@@ -692,6 +702,54 @@ class KPdfApp:
             output_path_str: Path to the merged output file.
         """
         self._tab_manager.open_file(Path(output_path_str))
+
+    # --- Print handlers ---
+
+    def _on_document_ready_print(self, session_id: str, model: object) -> None:
+        """Enable print action when a document is loaded."""
+        from k_pdf.core.document_model import DocumentModel
+
+        if isinstance(model, DocumentModel):
+            self._window.set_print_enabled(True)
+
+    def _on_print_requested(self) -> None:
+        """Handle File > Print — show QPrintDialog and print document."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is None or presenter.model is None:
+            return
+
+        model = presenter.model
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+
+        dialog = QPrintDialog(printer, self._window)
+        dialog.setMinMax(1, model.metadata.page_count)
+
+        if dialog.exec() != 1:  # QDialog.DialogCode.Accepted
+            return
+
+        def progress(current: int, total: int) -> None:
+            self._window.update_status_message(f"Printing page {current} of {total}...")
+
+        result = self._print_service.print_document(
+            printer=printer,
+            doc_handle=model.doc_handle,
+            page_count=model.metadata.page_count,
+            pdf_engine=self._pdf_engine,
+            progress_callback=progress,
+        )
+
+        if result.success:
+            self._window.update_status_message("Printing complete")
+        else:
+            self._show_print_error(result.error_message)
+
+    def _show_print_error(self, message: str) -> None:
+        """Show a print error dialog.
+
+        Args:
+            message: Error message to display.
+        """
+        self._window.show_error("Print Failed", message)
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""

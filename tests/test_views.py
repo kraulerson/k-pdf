@@ -1104,3 +1104,61 @@ class TestDarkModeMenu:
         w.set_theme_mode(ThemeMode.OFF)
         assert w._dark_mode_off_action.isChecked()
         assert not w._dark_mode_original_action.isChecked()
+
+
+class TestMainWindowPrintAction:
+    def test_print_action_exists(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        found = None
+        for action in window.findChildren(QAction):
+            if "Print" in action.text():
+                found = action
+                break
+        assert found is not None
+
+    def test_print_action_shortcut_ctrl_p(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert window._print_action.shortcut().toString() == "Ctrl+P"
+
+    def test_print_action_disabled_by_default(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert not window._print_action.isEnabled()
+
+    def test_set_print_enabled_true(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_print_enabled(True)
+        assert window._print_action.isEnabled()
+
+    def test_set_print_enabled_false(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_print_enabled(True)
+        window.set_print_enabled(False)
+        assert not window._print_action.isEnabled()
+
+    def test_print_action_emits_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_print_enabled(True)
+        with qtbot.waitSignal(window.print_requested, timeout=1000):  # type: ignore[union-attr]
+            window._print_action.trigger()
+
+    def test_print_requested_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "print_requested")
+        spy = MagicMock()
+        window.print_requested.connect(spy)

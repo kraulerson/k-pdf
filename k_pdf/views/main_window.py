@@ -84,6 +84,7 @@ class MainWindow(QMainWindow):
     text_box_toggled = Signal(bool)
     save_requested = Signal()
     save_as_requested = Signal()
+    print_requested = Signal()
     merge_requested = Signal()
     dark_mode_changed = Signal(str)  # ThemeMode.value
     dark_mode_toggle_requested = Signal()
@@ -226,6 +227,14 @@ class MainWindow(QMainWindow):
         self._save_as_action.setEnabled(False)
         self._save_as_action.triggered.connect(self.save_as_requested.emit)
         file_menu.addAction(self._save_as_action)
+
+        file_menu.addSeparator()
+
+        self._print_action = QAction("&Print...", self)
+        self._print_action.setShortcut(QKeySequence("Ctrl+P"))
+        self._print_action.setEnabled(False)
+        self._print_action.triggered.connect(self.print_requested.emit)
+        file_menu.addAction(self._print_action)
 
         file_menu.addSeparator()
 
@@ -432,6 +441,14 @@ class MainWindow(QMainWindow):
         """
         self._save_action.setEnabled(enabled)
         self._save_as_action.setEnabled(enabled)
+
+    def set_print_enabled(self, enabled: bool) -> None:
+        """Enable or disable the Print action.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._print_action.setEnabled(enabled)
 
     def set_theme_mode(self, mode: object) -> None:
         """Update the UI to reflect the current theme mode.
