@@ -854,3 +854,41 @@ class TestMainWindowPageManager:
                 break
         assert found is not None
         assert found.shortcut().toString() == "F7"
+
+
+class TestMainWindowAnnotationPanel:
+    def test_annotation_summary_panel_exists(self) -> None:
+        from k_pdf.views.annotation_panel import AnnotationSummaryPanel
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert isinstance(w.annotation_summary_panel, AnnotationSummaryPanel)
+
+    def test_annotation_summary_panel_starts_hidden(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w.annotation_summary_panel.isVisible()
+
+    def test_annotation_panel_right_dock(self) -> None:
+        from PySide6.QtCore import Qt
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        area = w.dockWidgetArea(w.annotation_summary_panel)
+        assert area == Qt.DockWidgetArea.RightDockWidgetArea
+
+    def test_f6_shortcut_in_view_menu(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Annotation" in action.text() and "Panel" in action.text():
+                found = action
+                break
+        assert found is not None
+        assert found.shortcut().toString() == "F6"
