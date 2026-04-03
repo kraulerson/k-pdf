@@ -19,10 +19,12 @@ from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.annotation_presenter import AnnotationPresenter
 from k_pdf.presenters.form_presenter import FormPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
+from k_pdf.presenters.page_management_presenter import PageManagementPresenter
 from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.services.form_engine import FormEngine
+from k_pdf.services.page_engine import PageEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
@@ -68,6 +70,12 @@ class KPdfApp:
             form_engine=self._form_engine,
             tab_manager=self._tab_manager,
         )
+        self._page_engine = PageEngine()
+        self._page_management_presenter = PageManagementPresenter(
+            page_engine=self._page_engine,
+            tab_manager=self._tab_manager,
+            panel=self._window.page_manager_panel,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -101,6 +109,11 @@ class KPdfApp:
     def annotation_presenter(self) -> AnnotationPresenter:
         """Return the annotation presenter."""
         return self._annotation_presenter
+
+    @property
+    def page_management_presenter(self) -> PageManagementPresenter:
+        """Return the page management presenter."""
+        return self._page_management_presenter
 
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
@@ -208,6 +221,22 @@ class KPdfApp:
         self._form_presenter.save_failed.connect(self._on_save_failed)
         self._tab_manager.tab_closed.connect(self._form_presenter.on_tab_closed)
         self._tab_manager.close_guard_requested.connect(self._on_close_guard)
+
+        # Page management wiring
+        pm_panel = self._window.page_manager_panel
+        pm = self._page_management_presenter
+        pm_panel.rotate_left_clicked.connect(self._on_page_rotate_left)
+        pm_panel.rotate_right_clicked.connect(self._on_page_rotate_right)
+        pm_panel.delete_clicked.connect(self._on_page_delete)
+        pm_panel.add_clicked.connect(self._on_page_add)
+        pm_panel.page_moved.connect(pm.move_page)
+        pm.pages_changed.connect(self._on_pages_changed)
+        pm.dirty_changed.connect(self._on_page_dirty_changed)
+        pm.operation_started.connect(pm_panel.show_progress)
+        pm.operation_finished.connect(pm_panel.hide_progress)
+        self._tab_manager.tab_switched.connect(pm.on_tab_switched)
+        self._tab_manager.tab_closed.connect(pm.on_tab_closed)
+        self._tab_manager.document_ready.connect(self._on_document_ready_page_mgmt)
 
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
@@ -508,6 +537,68 @@ class KPdfApp:
         elif result == QMessageBox.StandardButton.Discard:
             self._tab_manager.force_close_tab(session_id)
         # Cancel: do nothing, tab stays open
+
+    # --- Page management handlers ---
+
+    def _on_page_rotate_left(self) -> None:
+        """Rotate selected pages 90 degrees counter-clockwise (modifies PDF)."""
+        selected = self._window.page_manager_panel.get_selected_pages()
+        if selected:
+            self._page_management_presenter.rotate_pages(selected, 270)
+
+    def _on_page_rotate_right(self) -> None:
+        """Rotate selected pages 90 degrees clockwise (modifies PDF)."""
+        selected = self._window.page_manager_panel.get_selected_pages()
+        if selected:
+            self._page_management_presenter.rotate_pages(selected, 90)
+
+    def _on_page_delete(self) -> None:
+        """Delete selected pages from the document."""
+        selected = self._window.page_manager_panel.get_selected_pages()
+        if selected:
+            self._page_management_presenter.delete_pages(selected)
+
+    def _on_page_add(self) -> None:
+        """Show file picker and insert pages from another PDF."""
+        path, _ = QFileDialog.getOpenFileName(
+            self._window,
+            "Add Pages from PDF",
+            "",
+            "PDF Files (*.pdf);;All Files (*)",
+        )
+        if path:
+            selected = self._window.page_manager_panel.get_selected_pages()
+            insert_at = max(selected) + 1 if selected else 0
+            model = self._page_management_presenter._get_active_model()
+            if model is not None and not selected:
+                insert_at = model.doc_handle.page_count
+            self._page_management_presenter.insert_pages(Path(path), insert_at)
+
+    def _on_pages_changed(self) -> None:
+        """Re-render viewport and update navigation after page operations."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
+
+    def _on_page_dirty_changed(self, dirty: bool) -> None:
+        """Update tab title with dirty indicator from page changes."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and presenter.model is not None and viewport is not None:
+            name = presenter.model.file_path.name
+            title = f"* {name}" if dirty else name
+            idx = self._window.tab_widget.indexOf(viewport)
+            if idx >= 0:
+                self._window.tab_widget.setTabText(idx, title)
+
+    def _on_document_ready_page_mgmt(self, session_id: str, model: object) -> None:
+        """Refresh page management panel when a new document loads."""
+        self._page_management_presenter.on_tab_switched(session_id)
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
