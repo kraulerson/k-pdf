@@ -16,6 +16,7 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
+    QImage,
     QMouseEvent,
     QPen,
     QPixmap,
@@ -92,6 +93,7 @@ class PdfViewport(QGraphicsView):
         self._annotation_engine: object | None = None
         self._doc_handle: object | None = None
         self._form_overlays: list[QGraphicsProxyWidget] = []
+        self._invert_pdf: bool = False
 
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -100,6 +102,23 @@ class PdfViewport(QGraphicsView):
     def state(self) -> ViewportState:
         """Return the current viewport state."""
         return self._state
+
+    @property
+    def invert_pdf(self) -> bool:
+        """Return whether PDF inversion is active."""
+        return self._invert_pdf
+
+    def set_invert_pdf(self, invert: bool) -> None:
+        """Enable or disable PDF color inversion.
+
+        When enabled, incoming pixmaps in set_page_pixmap() will have
+        their RGB channels inverted before display. This is view-only
+        and does not modify the PDF file.
+
+        Args:
+            invert: True to enable inversion, False to disable.
+        """
+        self._invert_pdf = invert
 
     def set_loading(self, filename: str) -> None:
         """Switch to loading state."""
@@ -169,12 +188,18 @@ class PdfViewport(QGraphicsView):
     def set_page_pixmap(self, page_index: int, pixmap: QPixmap) -> None:
         """Replace a page placeholder with a rendered pixmap.
 
+        If PDF inversion is active, the pixmap's RGB channels are
+        inverted before display (alpha is preserved).
+
         Args:
             page_index: The page to update.
             pixmap: The rendered page image.
         """
         if page_index not in self._page_items:
             return
+
+        if self._invert_pdf:
+            pixmap = self._invert_pixmap(pixmap)
 
         old_item = self._page_items[page_index]
         y_pos = old_item.pos().y()
@@ -184,6 +209,20 @@ class PdfViewport(QGraphicsView):
         pixmap_item.setPos(0, y_pos)
         self._scene.addItem(pixmap_item)
         self._page_items[page_index] = pixmap_item
+
+    @staticmethod
+    def _invert_pixmap(pixmap: QPixmap) -> QPixmap:
+        """Invert the RGB channels of a QPixmap, preserving alpha.
+
+        Args:
+            pixmap: The source pixmap.
+
+        Returns:
+            A new QPixmap with inverted RGB channels.
+        """
+        image = pixmap.toImage()
+        image.invertPixels(QImage.InvertMode.InvertRgb)
+        return QPixmap.fromImage(image)
 
     def set_page_error(self, page_index: int) -> None:
         """Show an error placeholder for a page that failed to render.
