@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import logging
 from enum import Enum, auto
+from typing import override
 
-from PySide6.QtCore import QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPixmap
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QResizeEvent, QWheelEvent
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsRectItem,
@@ -47,6 +48,8 @@ class PdfViewport(QGraphicsView):
 
     visible_pages_changed = Signal(list)  # list[int] of visible page indices
     current_page_changed = Signal(int)  # topmost visible page index
+    viewport_resized = Signal(float, float)  # (width, height)
+    zoom_at_cursor = Signal(float, QPointF)  # (step_direction, scene_pos)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -201,6 +204,28 @@ class PdfViewport(QGraphicsView):
             return
         y = self._page_y_offsets[page_index]
         self.verticalScrollBar().setValue(int(y))
+
+    @override
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Emit viewport_resized on resize for fit mode recalculation."""
+        super().resizeEvent(event)
+        vp = self.viewport()
+        self.viewport_resized.emit(float(vp.width()), float(vp.height()))
+
+    @override
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        """Handle Ctrl+scroll for zoom, delegate normal scroll to parent."""
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            event.accept()
+            angle = event.angleDelta().y()
+            if angle == 0:
+                return
+            # +0.1 per notch (120 units = 1 notch)
+            step = 0.1 * (angle / 120.0)
+            scene_pos = self.mapToScene(event.position().toPoint())
+            self.zoom_at_cursor.emit(step, scene_pos)
+        else:
+            super().wheelEvent(event)
 
     def add_search_highlights(
         self,

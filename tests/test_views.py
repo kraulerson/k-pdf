@@ -157,6 +157,96 @@ class TestPdfViewport:
         viewport.add_search_highlights(5, [(10.0, 20.0, 100.0, 40.0)], zoom=1.0)
         assert len(viewport._search_highlights) == 0
 
+    def test_viewport_resized_signal_exists(self) -> None:
+        """Test that viewport_resized signal exists."""
+        viewport = PdfViewport()
+        spy = MagicMock()
+        viewport.viewport_resized.connect(spy)
+
+    def test_zoom_at_cursor_signal_exists(self) -> None:
+        """Test that zoom_at_cursor signal exists."""
+        viewport = PdfViewport()
+        spy = MagicMock()
+        viewport.zoom_at_cursor.connect(spy)
+
+    def test_set_document_with_zoom(self) -> None:
+        """Test set_document applies zoom to page dimensions."""
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(
+                index=0,
+                width=612,
+                height=792,
+                rotation=0,
+                has_text=True,
+                annotation_count=0,
+            ),
+        ]
+        viewport.set_document(pages, zoom=2.0)
+        assert viewport.state == ViewportState.SUCCESS
+        # Scene rect should reflect zoomed page width
+        scene_rect = viewport.scene().sceneRect()
+        assert scene_rect.width() >= 612 * 2.0
+
+    def test_resize_event_emits_viewport_resized(self, qtbot: object) -> None:
+        """Test that resizeEvent emits viewport_resized signal."""
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QResizeEvent
+
+        viewport = PdfViewport()
+        spy = MagicMock()
+        viewport.viewport_resized.connect(spy)
+        viewport.show()
+        viewport.resize(800, 600)
+
+        # Force a resize event
+        event = QResizeEvent(QSize(800, 600), QSize(400, 300))
+        viewport.resizeEvent(event)
+
+        assert spy.call_count >= 1
+        width, height = spy.call_args[0]
+        assert width > 0
+        assert height > 0
+
+    def test_wheel_event_with_ctrl_emits_zoom_at_cursor(self, qtbot: object) -> None:
+        """Test that Ctrl+scroll emits zoom_at_cursor signal."""
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(
+                index=0,
+                width=612,
+                height=792,
+                rotation=0,
+                has_text=True,
+                annotation_count=0,
+            ),
+        ]
+        viewport.set_document(pages)
+        viewport.show()
+        viewport.resize(800, 600)
+
+        spy = MagicMock()
+        viewport.zoom_at_cursor.connect(spy)
+
+        # Simulate Ctrl+scroll up
+        event = QWheelEvent(
+            QPointF(400, 300),  # pos
+            QPointF(400, 300),  # globalPos
+            QPoint(0, 120),  # pixelDelta
+            QPoint(0, 120),  # angleDelta
+            Qt.MouseButton.NoButton,  # buttons
+            Qt.KeyboardModifier.ControlModifier,  # modifiers
+            Qt.ScrollPhase.NoScrollPhase,
+            False,  # inverted
+        )
+        viewport.wheelEvent(event)
+        spy.assert_called_once()
+        step, _pos = spy.call_args[0]
+        assert step > 0  # scroll up = zoom in
+
 
 class TestMainWindow:
     """Tests for MainWindow with multi-tab support."""
