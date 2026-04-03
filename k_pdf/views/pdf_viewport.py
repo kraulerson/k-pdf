@@ -12,13 +12,23 @@ from enum import Enum, auto
 from typing import override
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPen, QPixmap, QResizeEvent, QWheelEvent
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QFont,
+    QMouseEvent,
+    QPen,
+    QPixmap,
+    QResizeEvent,
+    QWheelEvent,
+)
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
     QGraphicsView,
+    QMenu,
     QWidget,
 )
 
@@ -50,6 +60,8 @@ class PdfViewport(QGraphicsView):
     current_page_changed = Signal(int)  # topmost visible page index
     viewport_resized = Signal(float, float)  # (width, height)
     zoom_at_cursor = Signal(float, QPointF)  # (step_direction, scene_pos)
+    text_selected = Signal(int, list)  # (page_index, word_rects)
+    annotation_delete_requested = Signal(int, object)  # (page_index, annot)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -66,6 +78,11 @@ class PdfViewport(QGraphicsView):
         self._current_page: int = -1
         self._search_highlights: list[QGraphicsRectItem] = []
         self._current_highlight: QGraphicsRectItem | None = None
+        self._selection_mode: bool = False
+        self._selection_overlays: list[QGraphicsRectItem] = []
+        self._drag_start: QPointF | None = None
+        self._annotation_engine: object | None = None
+        self._doc_handle: object | None = None
 
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -319,6 +336,250 @@ class PdfViewport(QGraphicsView):
         if self._current_highlight is not None:
             self._scene.removeItem(self._current_highlight)
             self._current_highlight = None
+
+    @property
+    def selection_mode(self) -> bool:
+        """Return whether text selection mode is active."""
+        return self._selection_mode
+
+    def set_selection_mode(self, active: bool) -> None:
+        """Toggle between pan mode and text selection mode.
+
+        Args:
+            active: True to enable text selection, False for pan.
+        """
+        self._selection_mode = active
+        if active:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setCursor(Qt.CursorShape.IBeamCursor)
+        else:
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.unsetCursor()
+            self.clear_selection_overlay()
+        self._drag_start = None
+
+    def set_annotation_engine(self, engine: object) -> None:
+        """Set the annotation engine for word rect queries.
+
+        Args:
+            engine: An AnnotationEngine instance.
+        """
+        self._annotation_engine = engine
+
+    def set_doc_handle(self, doc_handle: object) -> None:
+        """Set the document handle for annotation operations.
+
+        Args:
+            doc_handle: A pymupdf.Document handle (opaque to this layer).
+        """
+        self._doc_handle = doc_handle
+
+    def clear_selection_overlay(self) -> None:
+        """Remove all text selection overlay items from the scene."""
+        for item in self._selection_overlays:
+            self._scene.removeItem(item)
+        self._selection_overlays.clear()
+
+    def _page_at_scene_pos(self, scene_pos: QPointF) -> int:
+        """Return the page index at the given scene position, or -1."""
+        if not self._pages or not self._page_y_offsets:
+            return -1
+        for i, y_off in enumerate(self._page_y_offsets):
+            page_bottom = y_off + self._pages[i].height
+            if y_off <= scene_pos.y() <= page_bottom:
+                return i
+        return -1
+
+    def _scene_to_pdf_coords(
+        self, scene_pos: QPointF, page_index: int, zoom: float
+    ) -> tuple[float, float]:
+        """Map scene coordinates to PDF page coordinates.
+
+        Args:
+            scene_pos: Position in scene coordinates.
+            page_index: The page index.
+            zoom: Current zoom factor.
+
+        Returns:
+            (x, y) in PDF page coordinates.
+        """
+        y_off = self._page_y_offsets[page_index]
+        x = (scene_pos.x()) / zoom if zoom else scene_pos.x()
+        y = (scene_pos.y() - y_off) / zoom if zoom else (scene_pos.y() - y_off)
+        return (x, y)
+
+    @override
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse press -- start text selection drag or check context menu."""
+        if self._selection_mode and event.button() == Qt.MouseButton.LeftButton:
+            self._drag_start = self.mapToScene(event.pos())
+            self.clear_selection_overlay()
+            event.accept()
+            return
+        if event.button() == Qt.MouseButton.RightButton:
+            self._show_annotation_context_menu(event)
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    @override
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse move -- update text selection overlay during drag."""
+        if self._selection_mode and self._drag_start is not None:
+            current = self.mapToScene(event.pos())
+            self._update_selection_overlay(self._drag_start, current)
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    @override
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        """Handle mouse release -- finalize text selection and emit signal."""
+        if (
+            self._selection_mode
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._drag_start is not None
+        ):
+            end = self.mapToScene(event.pos())
+            page_index, selected_rects = self._finalize_selection(self._drag_start, end)
+            self._drag_start = None
+            if page_index >= 0 and selected_rects:
+                self.text_selected.emit(page_index, selected_rects)
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def _update_selection_overlay(self, start: QPointF, current: QPointF) -> None:
+        """Draw selection overlay rectangles over words in the drag range."""
+        self.clear_selection_overlay()
+        if self._annotation_engine is None or self._doc_handle is None:
+            return
+
+        page_index = self._page_at_scene_pos(start)
+        if page_index < 0:
+            return
+
+        # Determine zoom from page geometry
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_start = self._scene_to_pdf_coords(start, page_index, zoom)
+        pdf_end = self._scene_to_pdf_coords(current, page_index, zoom)
+
+        # Get selection rectangle in PDF coords
+        x0 = min(pdf_start[0], pdf_end[0])
+        y0 = min(pdf_start[1], pdf_end[1])
+        x1 = max(pdf_start[0], pdf_end[0])
+        y1 = max(pdf_start[1], pdf_end[1])
+
+        words = self._annotation_engine.get_text_words(self._doc_handle, page_index)  # type: ignore[attr-defined]
+        y_base = self._page_y_offsets[page_index]
+
+        pen = QPen(QColor(0, 100, 200, 100))
+        pen.setWidthF(0.5)
+        brush = QBrush(QColor(51, 153, 255, 80))
+
+        for w in words:
+            wx0, wy0, wx1, wy1 = w[0], w[1], w[2], w[3]
+            # Check if word overlaps selection rectangle
+            if wx1 >= x0 and wx0 <= x1 and wy1 >= y0 and wy0 <= y1:
+                sx = wx0 * zoom
+                sy = wy0 * zoom + y_base
+                sw = (wx1 - wx0) * zoom
+                sh = (wy1 - wy0) * zoom
+                rect_item = self._scene.addRect(QRectF(0, 0, sw, sh), pen=pen, brush=brush)
+                rect_item.setPos(sx, sy)
+                rect_item.setZValue(15)
+                self._selection_overlays.append(rect_item)
+
+    def _finalize_selection(
+        self, start: QPointF, end: QPointF
+    ) -> tuple[int, list[tuple[float, float, float, float]]]:
+        """Finalize selection and return page index + selected word rects.
+
+        Returns word bounding-box tuples (not pymupdf Quads) to keep pymupdf
+        out of the view layer. The presenter converts to quads via
+        AnnotationEngine.rects_to_quads() before creating annotations.
+
+        Args:
+            start: Drag start in scene coordinates.
+            end: Drag end in scene coordinates.
+
+        Returns:
+            Tuple of (page_index, word_rects) where word_rects is a list
+            of (x0, y0, x1, y1) tuples in PDF coordinates for selected words.
+            page_index is -1 if no words selected.
+        """
+        if self._annotation_engine is None or self._doc_handle is None:
+            return (-1, [])
+
+        page_index = self._page_at_scene_pos(start)
+        if page_index < 0:
+            return (-1, [])
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return (-1, [])
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_start = self._scene_to_pdf_coords(start, page_index, zoom)
+        pdf_end = self._scene_to_pdf_coords(end, page_index, zoom)
+
+        x0 = min(pdf_start[0], pdf_end[0])
+        y0 = min(pdf_start[1], pdf_end[1])
+        x1 = max(pdf_start[0], pdf_end[0])
+        y1 = max(pdf_start[1], pdf_end[1])
+
+        words = self._annotation_engine.get_text_words(self._doc_handle, page_index)  # type: ignore[attr-defined]
+
+        selected_rects: list[tuple[float, float, float, float]] = []
+        for w in words:
+            wx0, wy0, wx1, wy1 = w[0], w[1], w[2], w[3]
+            if wx1 >= x0 and wx0 <= x1 and wy1 >= y0 and wy0 <= y1:
+                selected_rects.append((wx0, wy0, wx1, wy1))
+
+        return (page_index, selected_rects)
+
+    def _show_annotation_context_menu(self, event: QMouseEvent) -> None:
+        """Show a context menu for deleting annotations on right-click."""
+        if self._annotation_engine is None or self._doc_handle is None:
+            return
+
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+
+        annots = self._annotation_engine.get_annotations(self._doc_handle, page_index)  # type: ignore[attr-defined]
+
+        # Find the topmost annotation at click point
+        hit_annot = None
+        for annot in reversed(annots):
+            rect = annot.rect
+            if rect.x0 <= pdf_x <= rect.x1 and rect.y0 <= pdf_y <= rect.y1:
+                hit_annot = annot
+                break
+
+        if hit_annot is None:
+            return
+
+        menu = QMenu(self)
+        delete_action = menu.addAction("Delete Annotation")
+        chosen = menu.exec(event.globalPosition().toPoint())
+        if chosen == delete_action:
+            self.annotation_delete_requested.emit(page_index, hit_annot)
 
     def get_visible_page_range(self) -> tuple[int, int]:
         """Calculate which pages are currently visible plus 1-page buffer.
