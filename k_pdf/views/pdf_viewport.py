@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.document_model import PageInfo
 
 logger = logging.getLogger("k_pdf.views.pdf_viewport")
@@ -62,6 +63,9 @@ class PdfViewport(QGraphicsView):
     zoom_at_cursor = Signal(float, QPointF)  # (step_direction, scene_pos)
     text_selected = Signal(int, list)  # (page_index, word_rects)
     annotation_delete_requested = Signal(int, object)  # (page_index, annot)
+    note_placed = Signal(int, tuple)  # (page_index, (x, y))
+    textbox_drawn = Signal(int, tuple)  # (page_index, (x0, y0, x1, y1))
+    annotation_double_clicked = Signal(int, object)  # (page_index, annot)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -78,9 +82,12 @@ class PdfViewport(QGraphicsView):
         self._current_page: int = -1
         self._search_highlights: list[QGraphicsRectItem] = []
         self._current_highlight: QGraphicsRectItem | None = None
+        self._tool_mode: ToolMode = ToolMode.NONE
         self._selection_mode: bool = False
         self._selection_overlays: list[QGraphicsRectItem] = []
         self._drag_start: QPointF | None = None
+        self._textbox_drag_start: QPointF | None = None
+        self._textbox_preview: QGraphicsRectItem | None = None
         self._annotation_engine: object | None = None
         self._doc_handle: object | None = None
 
@@ -342,21 +349,38 @@ class PdfViewport(QGraphicsView):
         """Return whether text selection mode is active."""
         return self._selection_mode
 
+    def set_tool_mode(self, mode: ToolMode) -> None:
+        """Set the active tool mode for viewport interaction.
+
+        Args:
+            mode: The tool mode to activate.
+        """
+        self._tool_mode = mode
+        self._selection_mode = mode is ToolMode.TEXT_SELECT
+
+        if mode is ToolMode.NONE:
+            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+            self.unsetCursor()
+            self.clear_selection_overlay()
+        elif mode is ToolMode.TEXT_SELECT:
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setCursor(Qt.CursorShape.IBeamCursor)
+        elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX):
+            self.setDragMode(QGraphicsView.DragMode.NoDrag)
+            self.setCursor(Qt.CursorShape.CrossCursor)
+
+        self._drag_start = None
+        self._textbox_drag_start = None
+
     def set_selection_mode(self, active: bool) -> None:
         """Toggle between pan mode and text selection mode.
+
+        Compatibility shim that delegates to set_tool_mode.
 
         Args:
             active: True to enable text selection, False for pan.
         """
-        self._selection_mode = active
-        if active:
-            self.setDragMode(QGraphicsView.DragMode.NoDrag)
-            self.setCursor(Qt.CursorShape.IBeamCursor)
-        else:
-            self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
-            self.unsetCursor()
-            self.clear_selection_overlay()
-        self._drag_start = None
+        self.set_tool_mode(ToolMode.TEXT_SELECT if active else ToolMode.NONE)
 
     def set_annotation_engine(self, engine: object) -> None:
         """Set the annotation engine for word rect queries.
@@ -410,12 +434,21 @@ class PdfViewport(QGraphicsView):
 
     @override
     def mousePressEvent(self, event: QMouseEvent) -> None:
-        """Handle mouse press -- start text selection drag or check context menu."""
-        if self._selection_mode and event.button() == Qt.MouseButton.LeftButton:
-            self._drag_start = self.mapToScene(event.pos())
-            self.clear_selection_overlay()
-            event.accept()
-            return
+        """Handle mouse press — text selection, sticky note, text box, or context menu."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            if self._tool_mode is ToolMode.TEXT_SELECT:
+                self._drag_start = self.mapToScene(event.pos())
+                self.clear_selection_overlay()
+                event.accept()
+                return
+            if self._tool_mode is ToolMode.STICKY_NOTE:
+                self._handle_sticky_note_click(event)
+                event.accept()
+                return
+            if self._tool_mode is ToolMode.TEXT_BOX:
+                self._textbox_drag_start = self.mapToScene(event.pos())
+                event.accept()
+                return
         if event.button() == Qt.MouseButton.RightButton:
             self._show_annotation_context_menu(event)
             event.accept()
@@ -424,19 +457,24 @@ class PdfViewport(QGraphicsView):
 
     @override
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        """Handle mouse move -- update text selection overlay during drag."""
-        if self._selection_mode and self._drag_start is not None:
+        """Handle mouse move — text selection or text box drag preview."""
+        if self._tool_mode is ToolMode.TEXT_SELECT and self._drag_start is not None:
             current = self.mapToScene(event.pos())
             self._update_selection_overlay(self._drag_start, current)
+            event.accept()
+            return
+        if self._tool_mode is ToolMode.TEXT_BOX and self._textbox_drag_start is not None:
+            current = self.mapToScene(event.pos())
+            self._update_textbox_preview(self._textbox_drag_start, current)
             event.accept()
             return
         super().mouseMoveEvent(event)
 
     @override
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        """Handle mouse release -- finalize text selection and emit signal."""
+        """Handle mouse release — finalize text selection or text box drawing."""
         if (
-            self._selection_mode
+            self._tool_mode is ToolMode.TEXT_SELECT
             and event.button() == Qt.MouseButton.LeftButton
             and self._drag_start is not None
         ):
@@ -447,7 +485,132 @@ class PdfViewport(QGraphicsView):
                 self.text_selected.emit(page_index, selected_rects)
             event.accept()
             return
+        if (
+            self._tool_mode is ToolMode.TEXT_BOX
+            and event.button() == Qt.MouseButton.LeftButton
+            and self._textbox_drag_start is not None
+        ):
+            end = self.mapToScene(event.pos())
+            self._finalize_textbox_draw(self._textbox_drag_start, end)
+            self._textbox_drag_start = None
+            self._clear_textbox_preview()
+            event.accept()
+            return
         super().mouseReleaseEvent(event)
+
+    @override
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        """Handle double-click — open editor for existing annotation."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            scene_pos = self.mapToScene(event.pos())
+            annot = self._hit_test_annotation(scene_pos)
+            if annot is not None:
+                page_index = self._page_at_scene_pos(scene_pos)
+                if page_index >= 0:
+                    self.annotation_double_clicked.emit(page_index, annot)
+                    event.accept()
+                    return
+        super().mouseDoubleClickEvent(event)
+
+    def _handle_sticky_note_click(self, event: QMouseEvent) -> None:
+        """Handle click in sticky note mode — emit note_placed signal."""
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+
+        # Snap to page bounds
+        pdf_x = max(0.0, min(pdf_x, page_info.width))
+        pdf_y = max(0.0, min(pdf_y, page_info.height))
+
+        self.note_placed.emit(page_index, (pdf_x, pdf_y))
+
+    def _update_textbox_preview(self, start: QPointF, current: QPointF) -> None:
+        """Draw a preview rectangle during text box drag."""
+        self._clear_textbox_preview()
+
+        x0 = min(start.x(), current.x())
+        y0 = min(start.y(), current.y())
+        w = abs(current.x() - start.x())
+        h = abs(current.y() - start.y())
+
+        pen = QPen(QColor(0, 0, 200, 180))
+        pen.setWidthF(1.5)
+        pen.setStyle(Qt.PenStyle.DashLine)
+        brush = QBrush(QColor(0, 0, 200, 30))
+
+        self._textbox_preview = self._scene.addRect(QRectF(0, 0, w, h), pen=pen, brush=brush)
+        self._textbox_preview.setPos(x0, y0)
+        self._textbox_preview.setZValue(20)
+
+    def _clear_textbox_preview(self) -> None:
+        """Remove the text box drag preview from the scene."""
+        if self._textbox_preview is not None:
+            self._scene.removeItem(self._textbox_preview)
+            self._textbox_preview = None
+
+    def _finalize_textbox_draw(self, start: QPointF, end: QPointF) -> None:
+        """Finalize text box drawing and emit textbox_drawn signal."""
+        page_index = self._page_at_scene_pos(start)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_start = self._scene_to_pdf_coords(start, page_index, zoom)
+        pdf_end = self._scene_to_pdf_coords(end, page_index, zoom)
+
+        # Normalize and snap to page bounds
+        x0 = max(0.0, min(pdf_start[0], pdf_end[0]))
+        y0 = max(0.0, min(pdf_start[1], pdf_end[1]))
+        x1 = min(page_info.width, max(pdf_start[0], pdf_end[0]))
+        y1 = min(page_info.height, max(pdf_start[1], pdf_end[1]))
+
+        # Minimum size check
+        if abs(x1 - x0) < 5.0 or abs(y1 - y0) < 5.0:
+            return
+
+        self.textbox_drawn.emit(page_index, (x0, y0, x1, y1))
+
+    def _hit_test_annotation(self, scene_pos: QPointF) -> object | None:
+        """Hit-test annotations at the given scene position.
+
+        Returns the topmost sticky note or text box annotation at the point.
+        """
+        if self._annotation_engine is None or self._doc_handle is None:
+            return None
+
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return None
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return None
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+
+        annots = self._annotation_engine.get_annotations(self._doc_handle, page_index)  # type: ignore[attr-defined]
+
+        for annot in reversed(annots):
+            rect = annot.rect
+            if rect.x0 <= pdf_x <= rect.x1 and rect.y0 <= pdf_y <= rect.y1:
+                return annot  # type: ignore[no-any-return]
+        return None
 
     def _update_selection_overlay(self, start: QPointF, current: QPointF) -> None:
         """Draw selection overlay rectangles over words in the drag range."""

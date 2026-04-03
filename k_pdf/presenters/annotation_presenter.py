@@ -8,26 +8,16 @@ for tab-switch coordination.
 from __future__ import annotations
 
 import logging
-from enum import IntEnum
 
 from PySide6.QtCore import QObject, Signal
 
-from k_pdf.core.annotation_model import AnnotationType
+from k_pdf.core.annotation_model import AnnotationType, ToolMode
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.note_editor import NoteEditor
 
 logger = logging.getLogger("k_pdf.presenters.annotation_presenter")
-
-
-class ToolMode(IntEnum):
-    """Active tool mode for viewport interaction."""
-
-    NONE = 0
-    TEXT_SELECT = 1
-    STICKY_NOTE = 2
-    TEXT_BOX = 3
 
 
 class AnnotationPresenter(QObject):

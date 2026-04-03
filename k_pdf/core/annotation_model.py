@@ -8,7 +8,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from enum import Enum
+from enum import Enum, IntEnum
+
+
+class ToolMode(IntEnum):
+    """Active tool mode for viewport interaction."""
+
+    NONE = 0
+    TEXT_SELECT = 1
+    STICKY_NOTE = 2
+    TEXT_BOX = 3
 
 
 class AnnotationType(Enum):

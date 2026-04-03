@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from PySide6.QtWidgets import QApplication, QTabWidget
 
-from k_pdf.core.annotation_model import AnnotationType
+from k_pdf.core.annotation_model import AnnotationType, ToolMode
 from k_pdf.core.document_model import DocumentMetadata, DocumentModel, PageInfo
-from k_pdf.presenters.annotation_presenter import AnnotationPresenter, ToolMode
+from k_pdf.presenters.annotation_presenter import AnnotationPresenter
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
