@@ -155,3 +155,86 @@ class TestRectsToQuads:
         annot = engine.add_highlight(doc, 0, quads, (1.0, 1.0, 0.0))
         assert annot is not None
         doc.close()
+
+
+class TestAddStickyNote:
+    def test_creates_text_annotation(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = engine.add_sticky_note(doc, 0, (100.0, 100.0), "Test note")
+        assert annot is not None
+        page = doc[0]
+        annots = list(page.annots())
+        assert len(annots) == 1
+        doc.close()
+
+    def test_sticky_note_has_content(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        engine.add_sticky_note(doc, 0, (100.0, 100.0), "My note content")
+        content = engine.get_annotation_content(doc, 0, next(iter(doc[0].annots())))
+        assert content == "My note content"
+        doc.close()
+
+    def test_sticky_note_with_author(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = engine.add_sticky_note(doc, 0, (100.0, 100.0), "Note", author="Karl")
+        info = annot.info
+        assert info["title"] == "Karl"
+        doc.close()
+
+
+class TestAddTextBox:
+    def test_creates_freetext_annotation(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = engine.add_text_box(doc, 0, (100.0, 200.0, 300.0, 250.0), "Box content")
+        assert annot is not None
+        page = doc[0]
+        annots = list(page.annots())
+        assert len(annots) == 1
+        doc.close()
+
+    def test_text_box_has_correct_rect(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        annot = engine.add_text_box(doc, 0, (100.0, 200.0, 300.0, 250.0), "Content")
+        # Access rect from the returned annot directly (avoids stale ref segfault)
+        r = annot.rect
+        assert abs(r.x0 - 100.0) < 1.0
+        assert abs(r.y0 - 200.0) < 1.0
+        doc.close()
+
+
+class TestUpdateAnnotationContent:
+    def test_updates_sticky_note_content(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        engine.add_sticky_note(doc, 0, (100.0, 100.0), "Original")
+        annot = next(iter(doc[0].annots()))
+        engine.update_annotation_content(doc, 0, annot, "Updated")
+        refreshed = next(iter(doc[0].annots()))
+        content = engine.get_annotation_content(doc, 0, refreshed)
+        assert content == "Updated"
+        doc.close()
+
+
+class TestGetAnnotationContent:
+    def test_reads_content_from_sticky_note(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        engine.add_sticky_note(doc, 0, (100.0, 100.0), "Read me")
+        annot = next(iter(doc[0].annots()))
+        content = engine.get_annotation_content(doc, 0, annot)
+        assert content == "Read me"
+        doc.close()
+
+    def test_empty_content_returns_empty_string(self, annotatable_pdf: Path) -> None:
+        engine = AnnotationEngine()
+        doc = pymupdf.open(str(annotatable_pdf))
+        engine.add_sticky_note(doc, 0, (100.0, 100.0), "")
+        annot = next(iter(doc[0].annots()))
+        content = engine.get_annotation_content(doc, 0, annot)
+        assert content == ""
+        doc.close()

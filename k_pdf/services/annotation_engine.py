@@ -150,6 +150,122 @@ class AnnotationEngine:
         page = doc_handle[page_index]
         return list(page.annots())
 
+    def add_sticky_note(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        point: tuple[float, float],
+        content: str,
+        author: str = "",
+    ) -> Any:
+        """Add a sticky note annotation at a point on a page.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            point: (x, y) position in PDF coordinates.
+            content: Text content for the note.
+            author: Optional author name.
+
+        Returns:
+            The created pymupdf.Annot object.
+        """
+        page = doc_handle[page_index]
+        annot = page.add_text_annot(point, content, icon="Note")
+        if author:
+            annot.set_info(title=author)
+            annot.update()
+        logger.debug("Added sticky note on page %d at %s", page_index, point)
+        return annot
+
+    def add_text_box(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        rect: tuple[float, float, float, float],
+        content: str,
+        color: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    ) -> Any:
+        """Add a free-text box annotation on a page.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            rect: (x0, y0, x1, y1) bounding rectangle.
+            content: Text content for the box.
+            color: Text color as RGB 0.0-1.0 floats.
+
+        Returns:
+            The created pymupdf.Annot object.
+        """
+        page = doc_handle[page_index]
+        annot = page.add_freetext_annot(
+            rect,
+            content,
+            fontsize=11,
+            fontname="helv",
+            text_color=color,
+        )
+        logger.debug("Added text box on page %d at rect %s", page_index, rect)
+        return annot
+
+    def update_annotation_content(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        annot: Any,
+        content: str,
+    ) -> None:
+        """Update the text content of an existing annotation.
+
+        Re-fetches the annotation from the page by xref to avoid
+        stale-reference errors, similar to delete_annotation.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            annot: The pymupdf.Annot to update (used for xref lookup).
+            content: New text content.
+        """
+        page = doc_handle[page_index]
+        target_xref = annot.xref
+        for page_annot in page.annots():
+            if page_annot.xref == target_xref:
+                page_annot.set_info(content=content)
+                page_annot.update()
+                logger.debug("Updated annotation content on page %d", page_index)
+                return
+        logger.warning(
+            "Annotation xref=%d not found on page %d for update", target_xref, page_index
+        )
+
+    def get_annotation_content(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        annot: Any,
+    ) -> str:
+        """Read text content from an annotation.
+
+        Re-fetches the annotation from the page by xref to avoid
+        stale-reference errors.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            annot: The pymupdf.Annot to read (used for xref lookup).
+
+        Returns:
+            The annotation's text content, or empty string.
+        """
+        page = doc_handle[page_index]
+        target_xref = annot.xref
+        for page_annot in page.annots():
+            if page_annot.xref == target_xref:
+                info = page_annot.info
+                return str(info.get("content", ""))
+        return ""
+
     def rects_to_quads(self, rects: list[tuple[float, float, float, float]]) -> list[Any]:
         """Convert word bounding-box rectangles to quad points.
 
