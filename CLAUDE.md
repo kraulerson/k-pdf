@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management)
-- **Features remaining:** Features 10-12 + 7 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 9 complete — PageOperation/PageOperationResult in page_model, PageEngine (delete_pages/move_page/rotate_pages/insert_pages_from/render_thumbnail/get_page_count), PageManagementPresenter (rotate_pages/delete_pages/insert_pages/move_page/on_tab_switched/on_tab_closed with dirty flag coordination), PageManagerPanel QDockWidget (thumbnail grid with multi-select, toolbar with Rotate Left/Right "(modifies file)", Delete Pages, Add Pages), MainWindow Page Manager dock (F7 toggle in View menu), KPdfApp full wiring with file picker for Add Pages, viewport re-render on page changes. Feature 5 rotation = view-only (Ctrl+R); Feature 9 rotation = modifies PDF /Rotate attribute.
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management), Feature 12 (Annotation Summary Panel)
+- **Features remaining:** Features 10-11 + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 84%+ (threshold 65%)
+- **Last session summary:** Feature 12 complete — AnnotationInfo dataclass in annotation_model, AnnotationEngine.get_annotation_info (type map: 8=Highlight, 9=Underline, 11=Strikethrough, 0=Note, 2=Text Box), AnnotationSummaryPanel QDockWidget (right-docked, QTableWidget with Page/Type/Author/Preview/Color columns, sorted by page, numeric sort via _NumericTableItem, empty state label), AnnotationSummaryPresenter (per-tab annotation state via _per_tab_annotations dict, scans all pages on document_ready, refresh on annotation_created/deleted, tab switch/close lifecycle), MainWindow right dock with F6 toggle in View menu, KPdfApp full wiring. 617 tests, 84% coverage.
 
 Update this section at the end of every session.
 
