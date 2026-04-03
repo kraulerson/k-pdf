@@ -24,8 +24,6 @@ class PageManagementPresenter(QObject):
 
     dirty_changed = Signal(bool)
     pages_changed = Signal()
-    operation_started = Signal(str)
-    operation_finished = Signal()
 
     def __init__(
         self,
@@ -151,13 +149,6 @@ class PageManagementPresenter(QObject):
             self.dirty_changed.emit(True)
             self._refresh_all_thumbnails(model.doc_handle)
             self.pages_changed.emit()
-
-    def refresh_thumbnails(self) -> None:
-        """Regenerate all thumbnails from current document state."""
-        model = self._get_active_model()
-        if model is None:
-            return
-        self._refresh_all_thumbnails(model.doc_handle)
 
     def on_tab_switched(self, session_id: str) -> None:
         """Refresh panel for the newly active document.

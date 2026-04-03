@@ -280,8 +280,6 @@ class KPdfApp:
         pm_panel.page_moved.connect(pm.move_page)
         pm.pages_changed.connect(self._on_pages_changed)
         pm.dirty_changed.connect(self._on_page_dirty_changed)
-        pm.operation_started.connect(pm_panel.show_progress)
-        pm.operation_finished.connect(pm_panel.hide_progress)
         self._tab_manager.tab_switched.connect(pm.on_tab_switched)
         self._tab_manager.tab_closed.connect(pm.on_tab_closed)
         self._tab_manager.document_ready.connect(self._on_document_ready_page_mgmt)
