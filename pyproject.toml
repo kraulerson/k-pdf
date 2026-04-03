@@ -141,6 +141,10 @@ module = ["k_pdf.core.thumbnail_cache"]
 disable_error_code = ["misc", "untyped-decorator", "unused-ignore"]
 
 [[tool.mypy.overrides]]
+module = ["k_pdf.core.undo_manager"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
 module = ["PySide6", "PySide6.*"]
 ignore_missing_imports = true
 
