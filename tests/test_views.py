@@ -690,3 +690,125 @@ class TestKPdfAppAnnotationWiring:
         kpdf = KPdfApp(app_instance)
         assert kpdf._annotation_toolbar is not None
         kpdf.shutdown()
+
+
+class TestMainWindowSaveActions:
+    def test_save_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "save_requested")
+
+    def test_save_as_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "save_as_requested")
+
+    def test_save_action_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert window._save_action.shortcut().toString() == "Ctrl+S"
+
+    def test_save_as_action_shortcut(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert window._save_as_action.shortcut().toString() == "Ctrl+Shift+S"
+
+    def test_save_action_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert not window._save_action.isEnabled()
+
+    def test_save_as_action_initially_disabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert not window._save_as_action.isEnabled()
+
+    def test_set_save_enabled(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_save_enabled(True)
+        assert window._save_action.isEnabled()
+        assert window._save_as_action.isEnabled()
+
+    def test_set_save_enabled_false(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_save_enabled(True)
+        window.set_save_enabled(False)
+        assert not window._save_action.isEnabled()
+        assert not window._save_as_action.isEnabled()
+
+    def test_save_action_triggers_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_save_enabled(True)
+        with qtbot.waitSignal(window.save_requested, timeout=1000):  # type: ignore[union-attr]
+            window._save_action.trigger()
+
+    def test_save_as_action_triggers_signal(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        window.set_save_enabled(True)
+        with qtbot.waitSignal(window.save_as_requested, timeout=1000):  # type: ignore[union-attr]
+            window._save_as_action.trigger()
+
+
+class TestViewportFormOverlays:
+    def test_add_form_overlay(self) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        widget = QLineEdit()
+        viewport.add_form_overlay(widget, page_index=0, rect=(72.0, 100.0, 300.0, 120.0))
+        assert len(viewport._form_overlays) == 1
+
+    def test_remove_form_overlays(self) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        widget = QLineEdit()
+        viewport.add_form_overlay(widget, page_index=0, rect=(72.0, 100.0, 300.0, 120.0))
+        viewport.remove_form_overlays()
+        assert len(viewport._form_overlays) == 0
+
+    def test_add_form_overlay_invalid_page_ignored(self) -> None:
+        from PySide6.QtWidgets import QLineEdit
+
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        widget = QLineEdit()
+        viewport.add_form_overlay(widget, page_index=5, rect=(72.0, 100.0, 300.0, 120.0))
+        assert len(viewport._form_overlays) == 0
+
+    def test_add_multiple_overlays(self) -> None:
+        from PySide6.QtWidgets import QCheckBox, QLineEdit
+
+        viewport = PdfViewport()
+        pages = [
+            PageInfo(index=0, width=612, height=792, rotation=0, has_text=True, annotation_count=0),
+        ]
+        viewport.set_document(pages)
+        viewport.add_form_overlay(QLineEdit(), page_index=0, rect=(72.0, 100.0, 300.0, 120.0))
+        viewport.add_form_overlay(QCheckBox(), page_index=0, rect=(72.0, 140.0, 92.0, 160.0))
+        assert len(viewport._form_overlays) == 2

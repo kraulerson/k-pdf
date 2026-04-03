@@ -24,6 +24,7 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QGraphicsPixmapItem,
+    QGraphicsProxyWidget,
     QGraphicsRectItem,
     QGraphicsScene,
     QGraphicsSimpleTextItem,
@@ -90,6 +91,7 @@ class PdfViewport(QGraphicsView):
         self._textbox_preview: QGraphicsRectItem | None = None
         self._annotation_engine: object | None = None
         self._doc_handle: object | None = None
+        self._form_overlays: list[QGraphicsProxyWidget] = []
 
         # Connect scroll changes to lazy render requests
         self.verticalScrollBar().valueChanged.connect(self._on_scroll)
@@ -794,3 +796,38 @@ class PdfViewport(QGraphicsView):
         if not self._pages:
             return 0.0
         return max(p.width * zoom for p in self._pages)
+
+    # --- Form overlay methods ---
+
+    def add_form_overlay(
+        self,
+        widget: QWidget,
+        page_index: int,
+        rect: tuple[float, float, float, float],
+        zoom: float = 1.0,
+    ) -> None:
+        """Add a form field widget overlay to the scene.
+
+        Args:
+            widget: The Qt widget (QLineEdit, QCheckBox, QComboBox).
+            page_index: Zero-based page index.
+            rect: Bounding rectangle (x0, y0, x1, y1) in PDF coordinates.
+            zoom: Current zoom factor.
+        """
+        if page_index < 0 or page_index >= len(self._page_y_offsets):
+            return
+
+        x0, y0, x1, y1 = rect
+        y_base = self._page_y_offsets[page_index]
+
+        proxy = self._scene.addWidget(widget)
+        proxy.setPos(x0 * zoom, y_base + y0 * zoom)
+        proxy.setZValue(20)
+        widget.setFixedSize(int((x1 - x0) * zoom), int((y1 - y0) * zoom))
+        self._form_overlays.append(proxy)
+
+    def remove_form_overlays(self) -> None:
+        """Remove all form overlay proxy widgets from the scene."""
+        for proxy in self._form_overlays:
+            self._scene.removeItem(proxy)
+        self._form_overlays.clear()

@@ -79,6 +79,8 @@ class MainWindow(QMainWindow):
     text_selection_toggled = Signal(bool)
     sticky_note_toggled = Signal(bool)
     text_box_toggled = Signal(bool)
+    save_requested = Signal()
+    save_as_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -182,6 +184,20 @@ class MainWindow(QMainWindow):
         open_action.setShortcut(QKeySequence.StandardKey.Open)
         open_action.triggered.connect(self._open_file_dialog)
         file_menu.addAction(open_action)
+
+        file_menu.addSeparator()
+
+        self._save_action = QAction("&Save", self)
+        self._save_action.setShortcut(QKeySequence("Ctrl+S"))
+        self._save_action.setEnabled(False)
+        self._save_action.triggered.connect(self.save_requested.emit)
+        file_menu.addAction(self._save_action)
+
+        self._save_as_action = QAction("Save &As...", self)
+        self._save_as_action.setShortcut(QKeySequence("Ctrl+Shift+S"))
+        self._save_as_action.setEnabled(False)
+        self._save_as_action.triggered.connect(self.save_as_requested.emit)
+        file_menu.addAction(self._save_as_action)
 
         file_menu.addSeparator()
 
@@ -295,6 +311,15 @@ class MainWindow(QMainWindow):
         )
         if path:
             self.file_open_requested.emit(Path(path))
+
+    def set_save_enabled(self, enabled: bool) -> None:
+        """Enable or disable Save and Save As actions.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._save_action.setEnabled(enabled)
+        self._save_as_action.setEnabled(enabled)
 
     def show_error(self, title: str, message: str) -> None:
         """Show an error dialog.
