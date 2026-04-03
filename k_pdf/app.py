@@ -13,6 +13,7 @@ from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
+from k_pdf.core.theme_manager import ThemeManager, ThemeMode
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
@@ -82,6 +83,7 @@ class KPdfApp:
             annotation_engine=self._annotation_engine,
             panel=self._window.annotation_summary_panel,
         )
+        self._theme_manager = ThemeManager(app)
         self._initial_file = file_path
 
         self._connect_signals()
@@ -125,6 +127,11 @@ class KPdfApp:
     def annotation_summary_presenter(self) -> AnnotationSummaryPresenter:
         """Return the annotation summary presenter."""
         return self._annotation_summary_presenter
+
+    @property
+    def theme_manager(self) -> ThemeManager:
+        """Return the theme manager."""
+        return self._theme_manager
 
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
@@ -233,6 +240,12 @@ class KPdfApp:
         self._form_presenter.save_failed.connect(self._on_save_failed)
         self._tab_manager.tab_closed.connect(self._form_presenter.on_tab_closed)
         self._tab_manager.close_guard_requested.connect(self._on_close_guard)
+
+        # Dark mode wiring
+        self._window.dark_mode_changed.connect(self._on_dark_mode_changed)
+        self._window.dark_mode_toggle_requested.connect(self._on_dark_mode_toggle)
+        self._theme_manager.theme_changed.connect(self._on_theme_changed)
+        self._theme_manager.inversion_changed.connect(self._on_inversion_changed)
 
         # Page management wiring
         pm_panel = self._window.page_manager_panel
@@ -565,6 +578,40 @@ class KPdfApp:
         elif result == QMessageBox.StandardButton.Discard:
             self._tab_manager.force_close_tab(session_id)
         # Cancel: do nothing, tab stays open
+
+    # --- Dark mode handlers ---
+
+    def _on_dark_mode_changed(self, mode_value: str) -> None:
+        """Handle dark mode menu selection."""
+        mode_map = {
+            "off": ThemeMode.OFF,
+            "dark_original": ThemeMode.DARK_ORIGINAL,
+            "dark_inverted": ThemeMode.DARK_INVERTED,
+        }
+        mode = mode_map.get(mode_value)
+        if mode is not None:
+            self._theme_manager.set_mode(mode)
+
+    def _on_dark_mode_toggle(self) -> None:
+        """Handle Ctrl+D toggle."""
+        self._theme_manager.toggle()
+
+    def _on_theme_changed(self, mode_value: str) -> None:
+        """Update MainWindow UI when theme changes."""
+        mode_map = {
+            "off": ThemeMode.OFF,
+            "dark_original": ThemeMode.DARK_ORIGINAL,
+            "dark_inverted": ThemeMode.DARK_INVERTED,
+        }
+        mode = mode_map.get(mode_value)
+        if mode is not None:
+            self._window.set_theme_mode(mode)
+
+    def _on_inversion_changed(self, inverted: bool) -> None:
+        """Update viewport inversion when theme inversion state changes."""
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_invert_pdf(inverted)
 
     # --- Page management handlers ---
 

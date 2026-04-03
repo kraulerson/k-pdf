@@ -944,3 +944,163 @@ class TestMainWindowMergeAction:
                     break
             assert found is not None
             found.trigger()
+
+
+class TestDarkModeMenu:
+    def test_dark_mode_submenu_exists(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Dark Mode" in action.text():
+                found = action
+                break
+        assert found is not None
+        assert found.menu() is not None
+
+    def test_dark_mode_submenu_has_three_actions(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        dark_menu = None
+        for action in w.findChildren(QAction):
+            if "Dark Mode" in action.text() and action.menu() is not None:
+                dark_menu = action.menu()
+                break
+        assert dark_menu is not None
+        actions = [a for a in dark_menu.actions() if not a.isSeparator()]
+        assert len(actions) == 3
+
+    def test_dark_mode_actions_are_checkable(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        dark_menu = None
+        for action in w.findChildren(QAction):
+            if "Dark Mode" in action.text() and action.menu() is not None:
+                dark_menu = action.menu()
+                break
+        assert dark_menu is not None
+        for a in dark_menu.actions():
+            if not a.isSeparator():
+                assert a.isCheckable()
+
+    def test_dark_mode_off_is_default_checked(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._dark_mode_off_action.isChecked()
+
+    def test_dark_mode_signal_emitted(self, qtbot: object) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        with qtbot.waitSignal(w.dark_mode_changed, timeout=1000):  # type: ignore[union-attr]
+            w._dark_mode_original_action.trigger()
+
+    def test_dark_mode_signal_value_dark_original(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        signals: list[str] = []
+        w.dark_mode_changed.connect(signals.append)
+        w._dark_mode_original_action.trigger()
+        assert len(signals) == 1
+        assert signals[0] == "dark_original"
+
+    def test_dark_mode_signal_value_dark_inverted(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        signals: list[str] = []
+        w.dark_mode_changed.connect(signals.append)
+        w._dark_mode_inverted_action.trigger()
+        assert len(signals) == 1
+        assert signals[0] == "dark_inverted"
+
+    def test_dark_mode_signal_value_off(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        signals: list[str] = []
+        w._dark_mode_original_action.trigger()
+        w.dark_mode_changed.connect(signals.append)
+        w._dark_mode_off_action.trigger()
+        assert len(signals) == 1
+        assert signals[0] == "off"
+
+    def test_ctrl_d_toggle_action_exists(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if action.shortcut().toString() == "Ctrl+D":
+                found = action
+                break
+        assert found is not None
+
+    def test_dark_mode_toggle_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert hasattr(w, "dark_mode_toggle_requested")
+
+    def test_mode_label_in_status_bar(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert w._mode_label.text() == "Light Mode"
+
+    def test_set_theme_mode_updates_status_label(self) -> None:
+        from k_pdf.core.theme_manager import ThemeMode
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_theme_mode(ThemeMode.DARK_ORIGINAL)
+        assert w._mode_label.text() == "Dark Mode: Original PDF"
+
+    def test_set_theme_mode_inverted_status_label(self) -> None:
+        from k_pdf.core.theme_manager import ThemeMode
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_theme_mode(ThemeMode.DARK_INVERTED)
+        assert w._mode_label.text() == "Dark Mode: Inverted PDF"
+
+    def test_set_theme_mode_off_status_label(self) -> None:
+        from k_pdf.core.theme_manager import ThemeMode
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_theme_mode(ThemeMode.DARK_ORIGINAL)
+        w.set_theme_mode(ThemeMode.OFF)
+        assert w._mode_label.text() == "Light Mode"
+
+    def test_set_theme_mode_syncs_radio_buttons(self) -> None:
+        from k_pdf.core.theme_manager import ThemeMode
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_theme_mode(ThemeMode.DARK_ORIGINAL)
+        assert w._dark_mode_original_action.isChecked()
+        assert not w._dark_mode_off_action.isChecked()
+
+    def test_set_theme_mode_off_syncs_radio_buttons(self) -> None:
+        from k_pdf.core.theme_manager import ThemeMode
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        w.set_theme_mode(ThemeMode.DARK_ORIGINAL)
+        w.set_theme_mode(ThemeMode.OFF)
+        assert w._dark_mode_off_action.isChecked()
+        assert not w._dark_mode_original_action.isChecked()

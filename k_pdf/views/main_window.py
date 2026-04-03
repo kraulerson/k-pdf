@@ -84,6 +84,8 @@ class MainWindow(QMainWindow):
     save_requested = Signal()
     save_as_requested = Signal()
     merge_requested = Signal()
+    dark_mode_changed = Signal(str)  # ThemeMode.value
+    dark_mode_toggle_requested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -146,8 +148,10 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self._status_bar)
         self._page_label = QLabel("No document")
         self._zoom_label = QLabel("100%")
+        self._mode_label = QLabel("Light Mode")
         self._status_bar.addPermanentWidget(self._page_label)
         self._status_bar.addPermanentWidget(self._zoom_label)
+        self._status_bar.addPermanentWidget(self._mode_label)
 
         # Zoom toolbar
         self._zoom_toolbar = ZoomToolBar(self)
@@ -303,6 +307,44 @@ class MainWindow(QMainWindow):
         zoom_reset_action.triggered.connect(self.zoom_reset_triggered.emit)
         view_menu.addAction(zoom_reset_action)
 
+        view_menu.addSeparator()
+
+        # Dark Mode submenu
+        dark_mode_menu = QMenu("&Dark Mode", self)
+        view_menu.addMenu(dark_mode_menu)
+
+        self._dark_mode_group = QActionGroup(self)
+        self._dark_mode_group.setExclusive(True)
+
+        self._dark_mode_off_action = QAction("Off", self)
+        self._dark_mode_off_action.setCheckable(True)
+        self._dark_mode_off_action.setChecked(True)
+        self._dark_mode_off_action.triggered.connect(lambda: self.dark_mode_changed.emit("off"))
+        self._dark_mode_group.addAction(self._dark_mode_off_action)
+        dark_mode_menu.addAction(self._dark_mode_off_action)
+
+        self._dark_mode_original_action = QAction("Dark UI / Original PDF", self)
+        self._dark_mode_original_action.setCheckable(True)
+        self._dark_mode_original_action.triggered.connect(
+            lambda: self.dark_mode_changed.emit("dark_original")
+        )
+        self._dark_mode_group.addAction(self._dark_mode_original_action)
+        dark_mode_menu.addAction(self._dark_mode_original_action)
+
+        self._dark_mode_inverted_action = QAction("Dark UI / Inverted PDF", self)
+        self._dark_mode_inverted_action.setCheckable(True)
+        self._dark_mode_inverted_action.triggered.connect(
+            lambda: self.dark_mode_changed.emit("dark_inverted")
+        )
+        self._dark_mode_group.addAction(self._dark_mode_inverted_action)
+        dark_mode_menu.addAction(self._dark_mode_inverted_action)
+
+        # Ctrl+D toggle shortcut
+        toggle_dark_action = QAction("Toggle Dark Mode", self)
+        toggle_dark_action.setShortcut(QKeySequence("Ctrl+D"))
+        toggle_dark_action.triggered.connect(self.dark_mode_toggle_requested.emit)
+        self.addAction(toggle_dark_action)
+
         # Tools menu
         self._tools_menu = menu_bar.addMenu("&Tools")
 
@@ -360,6 +402,49 @@ class MainWindow(QMainWindow):
         """
         self._save_action.setEnabled(enabled)
         self._save_as_action.setEnabled(enabled)
+
+    def set_theme_mode(self, mode: object) -> None:
+        """Update the UI to reflect the current theme mode.
+
+        Syncs the radio button group and the status bar mode label.
+        Called by KPdfApp when ThemeManager changes mode.
+
+        Args:
+            mode: A ThemeMode enum value.
+        """
+        from k_pdf.core.theme_manager import ThemeMode
+
+        if not isinstance(mode, ThemeMode):
+            return
+
+        # Update status bar label
+        _mode_labels = {
+            ThemeMode.OFF: "Light Mode",
+            ThemeMode.DARK_ORIGINAL: "Dark Mode: Original PDF",
+            ThemeMode.DARK_INVERTED: "Dark Mode: Inverted PDF",
+        }
+        self._mode_label.setText(_mode_labels.get(mode, "Light Mode"))
+
+        # Sync radio buttons (block signals to avoid feedback loop)
+        _action_map = {
+            ThemeMode.OFF: self._dark_mode_off_action,
+            ThemeMode.DARK_ORIGINAL: self._dark_mode_original_action,
+            ThemeMode.DARK_INVERTED: self._dark_mode_inverted_action,
+        }
+        target = _action_map.get(mode)
+        if target is not None:
+            # Block signals on all actions, then manually set checked state
+            all_actions = [
+                self._dark_mode_off_action,
+                self._dark_mode_original_action,
+                self._dark_mode_inverted_action,
+            ]
+            for action in all_actions:
+                action.blockSignals(True)
+            for action in all_actions:
+                action.setChecked(action is target)
+            for action in all_actions:
+                action.blockSignals(False)
 
     def show_error(self, title: str, message: str) -> None:
         """Show an error dialog.
