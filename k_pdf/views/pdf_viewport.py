@@ -158,10 +158,10 @@ class PdfViewport(QGraphicsView):
             w = page_info.width * zoom
             h = page_info.height * zoom
 
-            # Create a placeholder rectangle
+            # Create a placeholder rectangle using palette color
             rect_item = self._scene.addRect(
                 QRectF(0, 0, w, h),
-                brush=QBrush(QColor(240, 240, 240)),
+                brush=QBrush(self.palette().window().color()),
             )
             rect_item.setPos(0, y_offset)
             self._page_items[page_info.index] = rect_item
@@ -245,7 +245,7 @@ class PdfViewport(QGraphicsView):
 
         rect_item = self._scene.addRect(
             QRectF(0, 0, page_info.width, page_info.height),
-            brush=QBrush(QColor(200, 200, 200)),
+            brush=QBrush(self.palette().mid().color()),
         )
         rect_item.setPos(0, y_pos)
         self._page_items[page_index] = rect_item
@@ -364,6 +364,7 @@ class PdfViewport(QGraphicsView):
 
         pen = QPen(QColor(0, 0, 0, 255))
         pen.setWidthF(3.0)
+        pen.setStyle(Qt.PenStyle.DashLine)
         brush = QBrush(QColor(255, 150, 0, 120))
 
         current_item = self._scene.addRect(

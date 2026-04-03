@@ -145,6 +145,12 @@ QPushButton:disabled {
     border-color: #333333;
 }
 
+QPushButton:checked {
+    background-color: #1A3A5C;
+    border: 2px solid #90CAF9;
+    font-weight: bold;
+}
+
 QPushButton:focus {
     border: 2px solid #90CAF9;
 }

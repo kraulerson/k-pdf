@@ -138,6 +138,12 @@ QPushButton:disabled {
     border-color: #E0E0E0;
 }
 
+QPushButton:checked {
+    background-color: #E3F2FD;
+    border: 2px solid #1976D2;
+    font-weight: bold;
+}
+
 QPushButton:focus {
     border: 2px solid #1976D2;
 }
@@ -305,4 +311,42 @@ QSlider::handle:horizontal:hover {
 QSplitter::handle {
     background-color: #E0E0E0;
     width: 2px;
+}
+
+QCheckBox {
+    color: #212121;
+    spacing: 8px;
+}
+
+QCheckBox::indicator {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #9E9E9E;
+    border-radius: 3px;
+    background-color: #FFFFFF;
+}
+
+QCheckBox::indicator:checked {
+    background-color: #1976D2;
+    border-color: #1976D2;
+}
+
+QRadioButton {
+    color: #212121;
+    spacing: 8px;
+}
+
+QToolTip {
+    background-color: #F5F5F5;
+    color: #212121;
+    border: 1px solid #BDBDBD;
+    padding: 4px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #FFFFFF;
+    color: #212121;
+    border: 1px solid #E0E0E0;
+    selection-background-color: #E3F2FD;
+    selection-color: #212121;
 }

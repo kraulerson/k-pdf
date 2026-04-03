@@ -24,6 +24,33 @@ from k_pdf.core.annotation_model import AnnotationInfo
 
 logger = logging.getLogger("k_pdf.views.annotation_panel")
 
+# RGB-tuple-to-name mapping derived from annotation_toolbar._COLORS
+_RGB_TO_NAME: dict[tuple[float, float, float], str] = {
+    (1.0, 1.0, 0.0): "Yellow",
+    (1.0, 0.0, 0.0): "Red",
+    (0.0, 0.8, 0.0): "Green",
+    (0.0, 0.0, 1.0): "Blue",
+    (1.0, 0.65, 0.0): "Orange",
+    (0.5, 0.0, 0.5): "Purple",
+}
+
+
+def _color_name(rgb: tuple[float, float, float]) -> str:
+    """Return a human-readable name for an RGB color tuple.
+
+    Looks up exact matches first, then falls back to an ``(R, G, B)``
+    representation so the cell is never blank.
+    """
+    name = _RGB_TO_NAME.get(rgb)
+    if name is not None:
+        return name
+    # Fallback: display integer RGB values
+    r = int(rgb[0] * 255)
+    g = int(rgb[1] * 255)
+    b = int(rgb[2] * 255)
+    return f"({r}, {g}, {b})"
+
+
 # Type label -> icon character for accessibility (icon + text, never icon-only)
 _TYPE_ICONS: dict[str, str] = {
     "Highlight": "\U0001f58d",  # marker
@@ -108,7 +135,7 @@ class AnnotationSummaryPanel(QDockWidget):
         header.resizeSection(1, 120)
         header.resizeSection(2, 100)
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
-        header.resizeSection(4, 40)
+        header.resizeSection(4, 90)
 
         self._table.clicked.connect(self._on_row_clicked)
         layout.addWidget(self._table)
@@ -162,8 +189,10 @@ class AnnotationSummaryPanel(QDockWidget):
                 preview_item.setToolTip(info.content)
             self._table.setItem(row, 3, preview_item)
 
-            # Color swatch
+            # Color swatch + text name for accessibility
+            color_name = _color_name(info.color)
             color_item = QTableWidgetItem()
+            color_item.setText(color_name)
             swatch = _make_color_swatch(info.color)
             color_item.setData(Qt.ItemDataRole.DecorationRole, swatch)
             self._table.setItem(row, 4, color_item)

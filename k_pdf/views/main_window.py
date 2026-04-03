@@ -112,9 +112,6 @@ class MainWindow(QMainWindow):
         self._tab_widget.setMovable(True)
         self._tab_widget.setDocumentMode(True)
         self._tab_widget.setElideMode(Qt.TextElideMode.ElideRight)
-        self._tab_widget.setStyleSheet(
-            "QTabBar::tab:selected { border-bottom: 2px solid palette(text); }"
-        )
 
         # Stacked widget: page 0 = welcome, page 1 = tabs
         self._stacked = QStackedWidget(self)
