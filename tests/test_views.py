@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication
 
 from k_pdf.app import KPdfApp
 from k_pdf.core.document_model import PageInfo
+from k_pdf.core.zoom_model import FitMode
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.views.pdf_viewport import PdfViewport, ViewportState
 
@@ -519,4 +520,116 @@ class TestKPdfAppIntegration:
         kpdf.search_presenter.start_search = spy  # type: ignore[method-assign]
         kpdf.window.search_bar.search_requested.emit("hello", False, False)
         spy.assert_called_once_with("hello", case_sensitive=False, whole_word=False)
+        kpdf.shutdown()
+
+    def test_app_has_zoom_toolbar(self) -> None:
+        """Test that KPdfApp's window has a zoom toolbar."""
+        from k_pdf.views.zoom_toolbar import ZoomToolBar
+
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert isinstance(kpdf.window.zoom_toolbar, ZoomToolBar)
+        kpdf.shutdown()
+
+    def test_zoom_toolbar_zoom_routes_to_presenter(self) -> None:
+        """Test that toolbar zoom_changed reaches the active presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.zoom = 1.0
+        mock_presenter.rotation = 0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_toolbar.zoom_changed.emit(2.0)
+        mock_presenter.set_zoom.assert_called_once_with(2.0)
+        kpdf.shutdown()
+
+    def test_zoom_toolbar_rotate_cw_routes(self) -> None:
+        """Test that toolbar rotate_cw_requested reaches the active presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.rotation = 0
+        mock_presenter.zoom = 1.0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_toolbar.rotate_cw_requested.emit()
+        mock_presenter.set_rotation.assert_called_once_with(90)
+        kpdf.shutdown()
+
+    def test_zoom_toolbar_rotate_ccw_routes(self) -> None:
+        """Test that toolbar rotate_ccw_requested reaches the active presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.rotation = 0
+        mock_presenter.zoom = 1.0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_toolbar.rotate_ccw_requested.emit()
+        mock_presenter.set_rotation.assert_called_once_with(-90)
+        kpdf.shutdown()
+
+    def test_zoom_in_shortcut_routes(self) -> None:
+        """Test that Ctrl+= zoom in routes to presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.zoom = 1.0
+        mock_presenter.rotation = 0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_in_triggered.emit()
+        mock_presenter.set_zoom.assert_called_once_with(1.1)
+        kpdf.shutdown()
+
+    def test_zoom_out_shortcut_routes(self) -> None:
+        """Test that Ctrl+- zoom out routes to presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.zoom = 1.0
+        mock_presenter.rotation = 0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_out_triggered.emit()
+        mock_presenter.set_zoom.assert_called_once_with(0.9)
+        kpdf.shutdown()
+
+    def test_zoom_reset_shortcut_routes(self) -> None:
+        """Test that Ctrl+0 reset zoom routes to presenter."""
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+
+        mock_presenter = MagicMock()
+        mock_presenter.zoom = 2.0
+        mock_presenter.rotation = 0
+        mock_presenter.fit_mode = FitMode.NONE
+        kpdf.tab_manager.get_active_presenter = MagicMock(  # type: ignore[method-assign]
+            return_value=mock_presenter,
+        )
+        kpdf.window.zoom_reset_triggered.emit()
+        mock_presenter.set_zoom.assert_called_once_with(1.0)
         kpdf.shutdown()

@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtWidgets import QApplication
 
+from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
@@ -124,6 +125,27 @@ class KPdfApp:
         sp.highlight_page.connect(self._on_search_highlight_page)
         sp.clear_highlights.connect(self._on_search_clear_highlights)
 
+        # ZoomToolBar -> presenter
+        zoom_tb = self._window.zoom_toolbar
+        zoom_tb.zoom_changed.connect(self._on_toolbar_zoom_changed)
+        zoom_tb.fit_page_requested.connect(self._on_fit_page_requested)
+        zoom_tb.fit_width_requested.connect(self._on_fit_width_requested)
+        zoom_tb.rotate_cw_requested.connect(self._on_rotate_cw)
+        zoom_tb.rotate_ccw_requested.connect(self._on_rotate_ccw)
+
+        # MainWindow zoom/rotation shortcuts -> presenter
+        self._window.zoom_in_triggered.connect(self._on_zoom_in)
+        self._window.zoom_out_triggered.connect(self._on_zoom_out)
+        self._window.zoom_reset_triggered.connect(self._on_zoom_reset)
+        self._window.rotate_cw_triggered.connect(self._on_rotate_cw)
+        self._window.rotate_ccw_triggered.connect(self._on_rotate_ccw)
+
+        # Tab switch -> push zoom state to toolbar
+        self._tab_manager.tab_switched.connect(self._on_tab_switched_zoom)
+
+        # When a new tab's document is ready, wire its zoom signals
+        self._tab_manager.document_ready.connect(self._on_document_ready_zoom)
+
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
         if count == 0:
@@ -160,14 +182,111 @@ class KPdfApp:
     ) -> None:
         """Route highlight overlay to the active viewport."""
         viewport = self._tab_manager.get_active_viewport()
+        presenter = self._tab_manager.get_active_presenter()
         if viewport is not None:
-            viewport.add_search_highlights(page_index, rects, zoom=1.0)
+            zoom = presenter.zoom if presenter is not None else 1.0
+            viewport.add_search_highlights(page_index, rects, zoom=zoom)
 
     def _on_search_clear_highlights(self) -> None:
         """Clear search highlights on the active viewport."""
         viewport = self._tab_manager.get_active_viewport()
         if viewport is not None:
             viewport.clear_search_highlights()
+
+    # --- Zoom/rotation handlers ---
+
+    def _on_toolbar_zoom_changed(self, zoom: float) -> None:
+        """Route toolbar zoom change to active presenter."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_zoom(zoom)
+
+    def _on_fit_page_requested(self) -> None:
+        """Route Fit Page request to active presenter."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            vp = viewport.viewport()
+            presenter.set_fit_mode(FitMode.PAGE, float(vp.width()), float(vp.height()))
+
+    def _on_fit_width_requested(self) -> None:
+        """Route Fit Width request to active presenter."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            vp = viewport.viewport()
+            presenter.set_fit_mode(FitMode.WIDTH, float(vp.width()), float(vp.height()))
+
+    def _on_rotate_cw(self) -> None:
+        """Route rotate clockwise to active presenter."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_rotation(presenter.rotation + 90)
+
+    def _on_rotate_ccw(self) -> None:
+        """Route rotate counter-clockwise to active presenter."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_rotation(presenter.rotation - 90)
+
+    def _on_zoom_in(self) -> None:
+        """Zoom in by 10% via keyboard shortcut."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_zoom(presenter.zoom + 0.1)
+
+    def _on_zoom_out(self) -> None:
+        """Zoom out by 10% via keyboard shortcut."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_zoom(presenter.zoom - 0.1)
+
+    def _on_zoom_reset(self) -> None:
+        """Reset zoom to 100% via keyboard shortcut."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_zoom(1.0)
+
+    def _on_viewport_resized(self, width: float, height: float) -> None:
+        """Recalculate fit mode zoom on viewport resize."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None and presenter.fit_mode is not FitMode.NONE:
+            presenter.set_fit_mode(presenter.fit_mode, width, height)
+
+    def _on_zoom_at_cursor(self, step: float, _scene_pos: QPointF) -> None:
+        """Handle Ctrl+scroll zoom from viewport."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            presenter.set_zoom(presenter.zoom + step)
+
+    def _on_presenter_zoom_changed(self, zoom: float) -> None:
+        """Push zoom changes from presenter back to toolbar."""
+        self._window.zoom_toolbar.set_zoom(zoom)
+        self._window._zoom_label.setText(f"{int(zoom * 100)}%")
+
+    def _on_presenter_rotation_changed(self, rotation: int) -> None:
+        """Push rotation changes from presenter back to toolbar."""
+        self._window.zoom_toolbar.set_rotation(rotation)
+
+    def _on_tab_switched_zoom(self, session_id: str) -> None:
+        """Push the new tab's zoom/rotation/fit_mode state to toolbar."""
+        presenter = self._tab_manager.get_active_presenter()
+        if presenter is not None:
+            self._window.zoom_toolbar.set_zoom(presenter.zoom)
+            self._window.zoom_toolbar.set_rotation(presenter.rotation)
+            self._window.zoom_toolbar.set_fit_mode(presenter.fit_mode)
+            self._window._zoom_label.setText(f"{int(presenter.zoom * 100)}%")
+
+    def _on_document_ready_zoom(self, session_id: str, model: object) -> None:
+        """Wire zoom/rotation signals for a newly loaded document tab."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None:
+            presenter.zoom_changed.connect(self._on_presenter_zoom_changed)
+            presenter.rotation_changed.connect(self._on_presenter_rotation_changed)
+        if viewport is not None:
+            viewport.viewport_resized.connect(self._on_viewport_resized)
+            viewport.zoom_at_cursor.connect(self._on_zoom_at_cursor)
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
