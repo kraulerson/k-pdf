@@ -86,9 +86,9 @@ jobs:
         run: uv sync
 
       - name: Semgrep SAST scan
-        uses: returntocorp/semgrep-action@v1
-        with:
-          config: auto
+        run: |
+          pip install semgrep
+          semgrep scan --config auto k_pdf/ --error
 
       - name: pip-audit (dependency vulnerabilities)
         run: uv run pip-audit
