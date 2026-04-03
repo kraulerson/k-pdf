@@ -115,11 +115,12 @@ class AnnotationPresenter(QObject):
         shows the annotation toolbar.
         """
         doc_presenter = self._tab_manager.get_active_presenter()
-        if doc_presenter is None or doc_presenter.model is None:
+        viewport = self._tab_manager.get_active_viewport()
+        if doc_presenter is None or doc_presenter.model is None or viewport is None:
             return
 
         model = doc_presenter.model
-        page_index: int = doc_presenter.current_page
+        page_index: int = viewport._current_page if viewport._current_page >= 0 else 0
 
         words = self._engine.get_text_words(model.doc_handle, page_index)
         if not words:

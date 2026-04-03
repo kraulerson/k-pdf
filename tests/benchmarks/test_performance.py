@@ -9,8 +9,11 @@ Uses plain time.perf_counter() timing with upper-bound assertions.
 from __future__ import annotations
 
 import os
-import resource
+import sys
 import time
+
+if sys.platform != "win32":
+    import resource
 from pathlib import Path
 
 import pymupdf
@@ -39,8 +42,10 @@ def _timed(fn):
 
 
 def _rss_mb() -> float:
-    """Return current RSS in megabytes (macOS/Linux)."""
-    usage = resource.getrusage(resource.RUSAGE_SELF)
+    """Return current RSS in megabytes (macOS/Linux). Returns 0 on Windows."""
+    if sys.platform == "win32":
+        return 0.0
+    usage = resource.getrusage(resource.RUSAGE_SELF)  # type: ignore[name-defined]
     # macOS reports in bytes, Linux in kilobytes
     if os.uname().sysname == "Darwin":
         return usage.ru_maxrss / (1024 * 1024)
