@@ -1,13 +1,14 @@
-"""Annotation presenter — coordinates text selection, toolbar, and annotation engine.
+"""Annotation presenter — coordinates text selection, note editing, toolbar, and engine.
 
-Manages text selection mode, selected text regions, floating toolbar visibility,
-annotation creation/deletion, and the dirty flag. Subscribes to TabManager signals
+Manages tool modes (text selection, sticky note, text box), floating toolbar visibility,
+annotation creation/deletion/update, and the dirty flag. Subscribes to TabManager signals
 for tab-switch coordination.
 """
 
 from __future__ import annotations
 
 import logging
+from enum import IntEnum
 
 from PySide6.QtCore import QObject, Signal
 
@@ -15,16 +16,27 @@ from k_pdf.core.annotation_model import AnnotationType
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
+from k_pdf.views.note_editor import NoteEditor
 
 logger = logging.getLogger("k_pdf.presenters.annotation_presenter")
 
 
+class ToolMode(IntEnum):
+    """Active tool mode for viewport interaction."""
+
+    NONE = 0
+    TEXT_SELECT = 1
+    STICKY_NOTE = 2
+    TEXT_BOX = 3
+
+
 class AnnotationPresenter(QObject):
-    """Coordinates text selection, annotation toolbar, and annotation engine."""
+    """Coordinates text selection, note editing, annotation toolbar, and annotation engine."""
 
     dirty_changed = Signal(bool)  # emitted when dirty flag transitions
     annotation_created = Signal()  # emitted after annotation added (triggers re-render)
     annotation_deleted = Signal()  # emitted after annotation removed (triggers re-render)
+    tool_mode_changed = Signal(int)  # emitted when tool mode changes
 
     def __init__(
         self,
@@ -46,9 +58,14 @@ class AnnotationPresenter(QObject):
         self._engine = engine
         self._toolbar = toolbar
 
+        self._tool_mode: ToolMode = ToolMode.NONE
         self._selection_mode: bool = False
         self._selected_rects: list[tuple[float, float, float, float]] = []
         self._selected_page: int = -1
+
+        self._note_editor: NoteEditor | None = None
+        self._pending_point: tuple[float, float] | None = None
+        self._pending_rect: tuple[float, float, float, float] | None = None
 
         # Connect toolbar signals
         self._toolbar.annotation_requested.connect(self._on_annotation_requested)
@@ -57,19 +74,43 @@ class AnnotationPresenter(QObject):
         # Connect tab manager signals
         self._tab_manager.tab_switched.connect(self.on_tab_switched)
 
+    def set_note_editor(self, editor: NoteEditor) -> None:
+        """Set the NoteEditor widget reference.
+
+        Args:
+            editor: A NoteEditor instance.
+        """
+        self._note_editor = editor
+
+    def set_tool_mode(self, mode: ToolMode) -> None:
+        """Set the active tool mode.
+
+        Updates viewport interaction mode and cursor, clears selection
+        and hides toolbar when switching to NONE.
+
+        Args:
+            mode: The tool mode to activate.
+        """
+        self._tool_mode = mode
+        self._selection_mode = mode is ToolMode.TEXT_SELECT
+
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(mode)
+
+        if mode is ToolMode.NONE:
+            self._clear_selection()
+            self._toolbar.hide()
+
+        self.tool_mode_changed.emit(int(mode))
+
     def set_selection_mode(self, active: bool) -> None:
-        """Toggle text selection mode on the active viewport.
+        """Compatibility shim — sets TEXT_SELECT or NONE mode.
 
         Args:
             active: True to enable text selection, False for pan mode.
         """
-        self._selection_mode = active
-        viewport = self._tab_manager.get_active_viewport()
-        if viewport is not None:
-            viewport.set_selection_mode(active)
-        if not active:
-            self._clear_selection()
-            self._toolbar.hide()
+        self.set_tool_mode(ToolMode.TEXT_SELECT if active else ToolMode.NONE)
 
     def on_text_selected(
         self, page_index: int, rects: list[tuple[float, float, float, float]]
@@ -91,8 +132,6 @@ class AnnotationPresenter(QObject):
         # Show toolbar near the selection
         viewport = self._tab_manager.get_active_viewport()
         if viewport is not None:
-            # Map the midpoint of the first selected rect to global coords
-            # Use a rough position above the selection area
             global_pos = viewport.mapToGlobal(viewport.rect().center())
             self._toolbar.show_near(global_pos.x(), global_pos.y() - 60)
 
@@ -159,14 +198,127 @@ class AnnotationPresenter(QObject):
 
         logger.debug("Deleted annotation on page %d", page_index)
 
+    def on_note_placed(self, page_index: int, point: tuple[float, float]) -> None:
+        """Handle sticky note placement click from viewport.
+
+        Opens the NoteEditor for a new sticky note at the given point.
+
+        Args:
+            page_index: Zero-based page index.
+            point: (x, y) position in PDF coordinates.
+        """
+        self._pending_point = point
+        self._pending_rect = None
+
+        if self._note_editor is not None:
+            viewport = self._tab_manager.get_active_viewport()
+            x, y = 100, 200
+            if viewport is not None:
+                global_pos = viewport.mapToGlobal(viewport.rect().center())
+                x, y = global_pos.x(), global_pos.y()
+            self._note_editor.show_for_new("sticky_note", page_index, x, y)
+
+    def on_textbox_drawn(self, page_index: int, rect: tuple[float, float, float, float]) -> None:
+        """Handle text box drag completion from viewport.
+
+        Opens the NoteEditor for a new text box with the given rectangle.
+
+        Args:
+            page_index: Zero-based page index.
+            rect: (x0, y0, x1, y1) bounding rectangle in PDF coordinates.
+        """
+        self._pending_rect = rect
+        self._pending_point = None
+
+        if self._note_editor is not None:
+            viewport = self._tab_manager.get_active_viewport()
+            x, y = 100, 200
+            if viewport is not None:
+                global_pos = viewport.mapToGlobal(viewport.rect().center())
+                x, y = global_pos.x(), global_pos.y()
+            self._note_editor.show_for_new("text_box", page_index, x, y)
+
+    def on_annotation_double_clicked(self, page_index: int, annot: object) -> None:
+        """Handle double-click on existing annotation — open editor with content.
+
+        Args:
+            page_index: Zero-based page index.
+            annot: The annotation object that was double-clicked.
+        """
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is None or doc_presenter.model is None:
+            return
+        model = doc_presenter.model
+        content = self._engine.get_annotation_content(model.doc_handle, page_index, annot)
+
+        # Determine mode from annotation type tuple
+        annot_type = getattr(annot, "type", (0, 0))
+        mode = "sticky_note" if annot_type[0] == 0 else "text_box"
+
+        if self._note_editor is not None:
+            viewport = self._tab_manager.get_active_viewport()
+            x, y = 100, 200
+            if viewport is not None:
+                global_pos = viewport.mapToGlobal(viewport.rect().center())
+                x, y = global_pos.x(), global_pos.y()
+            self._note_editor.show_for_existing(mode, page_index, annot, content, x, y)
+
+    def _on_editing_finished(self, content: str) -> None:
+        """Handle NoteEditor save — create or update annotation.
+
+        Args:
+            content: The text content from the NoteEditor.
+        """
+        if self._note_editor is None:
+            return
+
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is None or doc_presenter.model is None:
+            return
+        model = doc_presenter.model
+
+        editor = self._note_editor
+        target_annot = editor._target_annot
+        page_index: int = editor._target_page
+        mode: str = editor._mode
+        if target_annot is not None:
+            # Update existing annotation
+            self._engine.update_annotation_content(
+                model.doc_handle, page_index, target_annot, content
+            )
+        elif mode == "sticky_note" and self._pending_point is not None:
+            self._engine.add_sticky_note(model.doc_handle, page_index, self._pending_point, content)
+        elif mode == "text_box" and self._pending_rect is not None:
+            self._engine.add_text_box(model.doc_handle, page_index, self._pending_rect, content)
+
+        model.dirty = True
+        self.dirty_changed.emit(True)
+        self.annotation_created.emit()
+
+        self._pending_point = None
+        self._pending_rect = None
+        self.set_tool_mode(ToolMode.NONE)
+
+        logger.debug("Annotation editing finished on page %d", page_index)
+
+    def _on_editing_cancelled(self) -> None:
+        """Handle NoteEditor cancel — reset pending state and tool mode."""
+        self._pending_point = None
+        self._pending_rect = None
+        self.set_tool_mode(ToolMode.NONE)
+
     def on_tab_switched(self, session_id: str) -> None:
-        """Handle tab switch — clear selection and hide toolbar.
+        """Handle tab switch — clear selection, hide toolbar, cancel editing.
 
         Args:
             session_id: The new active tab's session ID.
         """
         self._clear_selection()
         self._toolbar.hide()
+        if self._note_editor is not None:
+            self._note_editor.hide()
+        self._tool_mode = ToolMode.NONE
+        self._selection_mode = False
 
     def _clear_selection(self) -> None:
         """Clear the stored text selection state."""
