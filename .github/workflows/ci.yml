@@ -214,35 +214,10 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build/main.app/Contents
-
-          # 1. Move Python packages to Resources FIRST (before any signing)
-          mkdir -p Resources/python-packages
-          mv MacOS/pymupdf Resources/python-packages/ 2>/dev/null || true
-          mv MacOS/fitz Resources/python-packages/ 2>/dev/null || true
-          mv MacOS/shiboken6 Resources/python-packages/ 2>/dev/null || true
-          cat > MacOS/sitecustomize.py << 'PYEOF'
-          import sys, os
-          pkg_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Resources", "python-packages")
-          if pkg_dir not in sys.path:
-              sys.path.insert(0, pkg_dir)
-          PYEOF
-
-          # 2. Move dylibs to Frameworks
-          mkdir -p Frameworks
-          mv MacOS/lib*.dylib Frameworks/ 2>/dev/null || true
-          for dylib in Frameworks/*.dylib; do
-            name=$(basename "$dylib")
-            install_name_tool -change "@rpath/$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
-            install_name_tool -change "$name" "@executable_path/../Frameworks/$name" MacOS/main 2>/dev/null || true
-          done
-          install_name_tool -add_rpath @executable_path/../Frameworks MacOS/main 2>/dev/null || true
-
-          # 3. Sign all Mach-O binaries, then the bundle
-          find Frameworks -name '*.dylib' -exec codesign --force --sign - {} \;
           find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
-          codesign --force --sign - MacOS/main
+          find MacOS -name 'main' -type f -exec codesign --force --sign - {} \;
           cd ../../..
-          codesign --force --sign - build/main.app
+          xattr -cr build/main.app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
