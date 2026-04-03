@@ -10,17 +10,19 @@ import logging
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QTimer
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.annotation_presenter import AnnotationPresenter
+from k_pdf.presenters.form_presenter import FormPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.annotation_engine import AnnotationEngine
+from k_pdf.services.form_engine import FormEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
@@ -61,6 +63,11 @@ class KPdfApp:
         )
         self._note_editor = NoteEditor()
         self._annotation_presenter.set_note_editor(self._note_editor)
+        self._form_engine = FormEngine()
+        self._form_presenter = FormPresenter(
+            form_engine=self._form_engine,
+            tab_manager=self._tab_manager,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -189,6 +196,18 @@ class KPdfApp:
 
         # When a new document loads, wire viewport annotation signals
         self._tab_manager.document_ready.connect(self._on_document_ready_annotation)
+
+        # Form wiring
+        self._tab_manager.document_ready.connect(self._on_document_ready_form)
+        self._window.save_requested.connect(self._on_save_requested)
+        self._window.save_as_requested.connect(self._on_save_as_requested)
+        self._form_presenter.form_detected.connect(self._on_form_detected)
+        self._form_presenter.xfa_detected.connect(self._on_xfa_detected)
+        self._form_presenter.dirty_changed.connect(self._on_form_dirty_changed)
+        self._form_presenter.save_succeeded.connect(self._on_save_succeeded)
+        self._form_presenter.save_failed.connect(self._on_save_failed)
+        self._tab_manager.tab_closed.connect(self._form_presenter.on_tab_closed)
+        self._tab_manager.close_guard_requested.connect(self._on_close_guard)
 
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
@@ -404,6 +423,91 @@ class KPdfApp:
         self._window._text_select_action.blockSignals(False)
         self._window._sticky_note_action.blockSignals(False)
         self._window._text_box_action.blockSignals(False)
+
+    # --- Form / Save handlers ---
+
+    def _on_document_ready_form(self, session_id: str, model: object) -> None:
+        """Wire form detection for a newly loaded document."""
+        from k_pdf.core.document_model import DocumentModel
+
+        if isinstance(model, DocumentModel):
+            self._form_presenter.on_document_opened(session_id, model)
+            self._window.set_save_enabled(True)
+
+    def _on_save_requested(self) -> None:
+        """Handle File > Save."""
+        sid = self._tab_manager.active_session_id
+        if sid is not None:
+            self._form_presenter.save(sid)
+
+    def _on_save_as_requested(self) -> None:
+        """Handle File > Save As — show file picker then save."""
+        sid = self._tab_manager.active_session_id
+        if sid is None:
+            return
+        path, _ = QFileDialog.getSaveFileName(
+            self._window,
+            "Save As",
+            "",
+            "PDF Files (*.pdf);;All Files (*)",
+        )
+        if path:
+            self._form_presenter.save_as(sid, Path(path))
+
+    def _on_form_detected(self, count: int) -> None:
+        """Show form field count in status bar."""
+        self._window.update_status_message(
+            f"This document contains {count} form field{'s' if count != 1 else ''}"
+        )
+
+    def _on_xfa_detected(self, message: str) -> None:
+        """Show XFA notification in status bar."""
+        self._window.update_status_message(message)
+
+    def _on_form_dirty_changed(self, dirty: bool) -> None:
+        """Update tab title with dirty indicator from form changes."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and presenter.model is not None and viewport is not None:
+            name = presenter.model.file_path.name
+            title = f"* {name}" if dirty else name
+            idx = self._window.tab_widget.indexOf(viewport)
+            if idx >= 0:
+                self._window.tab_widget.setTabText(idx, title)
+
+    def _on_save_succeeded(self) -> None:
+        """Handle successful save."""
+        self._window.update_status_message("Document saved")
+        # Update tab title to remove dirty indicator
+        self._on_form_dirty_changed(False)
+
+    def _on_save_failed(self, error: str) -> None:
+        """Handle save failure — show error dialog."""
+        self._window.show_error("Save Failed", error)
+
+    def _on_close_guard(self, session_id: str) -> None:
+        """Show Save/Discard/Cancel dialog for dirty tab close."""
+        msg_box = QMessageBox(self._window)
+        msg_box.setWindowTitle("Unsaved Changes")
+        msg_box.setText("This document has unsaved changes.")
+        msg_box.setInformativeText("Do you want to save before closing?")
+        msg_box.setStandardButtons(
+            QMessageBox.StandardButton.Save
+            | QMessageBox.StandardButton.Discard
+            | QMessageBox.StandardButton.Cancel
+        )
+        msg_box.setDefaultButton(QMessageBox.StandardButton.Save)
+        result = msg_box.exec()
+
+        if result == QMessageBox.StandardButton.Save:
+            self._form_presenter.save(session_id)
+            # If save succeeded (dirty cleared), close the tab
+            ctx = self._tab_manager._tabs.get(session_id)
+            if ctx and ctx.presenter and ctx.presenter.model and not ctx.presenter.model.dirty:
+                self._tab_manager.force_close_tab(session_id)
+        elif result == QMessageBox.StandardButton.Discard:
+            self._tab_manager.force_close_tab(session_id)
+        # Cancel: do nothing, tab stays open
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
