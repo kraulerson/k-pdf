@@ -14,7 +14,13 @@ class TestAnnotationType:
         assert AnnotationType.STRIKETHROUGH.value == "strikethrough"
 
     def test_enum_member_count(self) -> None:
-        assert len(AnnotationType) == 3
+        assert len(AnnotationType) == 5
+
+    def test_sticky_note_value(self) -> None:
+        assert AnnotationType.STICKY_NOTE.value == "sticky_note"
+
+    def test_text_box_value(self) -> None:
+        assert AnnotationType.TEXT_BOX.value == "text_box"
 
 
 class TestAnnotationData:
@@ -69,3 +75,41 @@ class TestAnnotationData:
         )
         data.color = (0.0, 0.8, 0.0)
         assert data.color == (0.0, 0.8, 0.0)
+
+    def test_default_content_is_empty(self) -> None:
+        data = AnnotationData(
+            type=AnnotationType.STICKY_NOTE,
+            page=0,
+            quads=[],
+            color=(1.0, 1.0, 0.0),
+        )
+        assert data.content == ""
+
+    def test_custom_content(self) -> None:
+        data = AnnotationData(
+            type=AnnotationType.STICKY_NOTE,
+            page=0,
+            quads=[],
+            color=(1.0, 1.0, 0.0),
+            content="Hello note",
+        )
+        assert data.content == "Hello note"
+
+    def test_default_rect_is_none(self) -> None:
+        data = AnnotationData(
+            type=AnnotationType.TEXT_BOX,
+            page=0,
+            quads=[],
+            color=(0.0, 0.0, 0.0),
+        )
+        assert data.rect is None
+
+    def test_custom_rect(self) -> None:
+        data = AnnotationData(
+            type=AnnotationType.TEXT_BOX,
+            page=0,
+            quads=[],
+            color=(0.0, 0.0, 0.0),
+            rect=(100.0, 200.0, 300.0, 250.0),
+        )
+        assert data.rect == (100.0, 200.0, 300.0, 250.0)
