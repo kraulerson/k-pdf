@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management)
-- **Features remaining:** Features 10-12 + 7 implicit (see MVP Cutline)
-- **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 9 complete — PageOperation/PageOperationResult in page_model, PageEngine (delete_pages/move_page/rotate_pages/insert_pages_from/render_thumbnail/get_page_count), PageManagementPresenter (rotate_pages/delete_pages/insert_pages/move_page/on_tab_switched/on_tab_closed with dirty flag coordination), PageManagerPanel QDockWidget (thumbnail grid with multi-select, toolbar with Rotate Left/Right "(modifies file)", Delete Pages, Add Pages), MainWindow Page Manager dock (F7 toggle in View menu), KPdfApp full wiring with file picker for Add Pages, viewport re-render on page changes. Feature 5 rotation = view-only (Ctrl+R); Feature 9 rotation = modifies PDF /Rotate attribute.
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management), Feature 11 (Dark / Night Reading Mode)
+- **Features remaining:** Features 10, 12 + 7 implicit (see MVP Cutline)
+- **Known issues:** Coverage at 84%+ (threshold 65%)
+- **Last session summary:** Feature 11 complete — ThemeManager in core/theme_manager.py (ThemeMode enum: OFF/DARK_ORIGINAL/DARK_INVERTED, toggle with last-dark-mode memory, QSS stylesheet loading/application, theme_changed/inversion_changed signals). Light and dark QSS in resources/themes/ with WCAG AA contrast ratios. PdfViewport PDF inversion via QImage.invertPixels(InvertRgb) in set_page_pixmap(). MainWindow View > Dark Mode submenu (Off / Dark UI Original PDF / Dark UI Inverted PDF radio group), Ctrl+D toggle, status bar mode label. KPdfApp full wiring: menu -> ThemeManager -> MainWindow status/radio sync + viewport inversion.
 
 Update this section at the end of every session.
 
