@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management)
-- **Features remaining:** Features 10-12 + 7 implicit (see MVP Cutline)
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations), Feature 7 (Sticky Notes & Text Box Annotations), Feature 8 (AcroForm Filling & Save), Feature 9 (Page Management), Feature 10 (Merge Multiple PDFs)
+- **Features remaining:** Features 11-12 + 7 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 9 complete — PageOperation/PageOperationResult in page_model, PageEngine (delete_pages/move_page/rotate_pages/insert_pages_from/render_thumbnail/get_page_count), PageManagementPresenter (rotate_pages/delete_pages/insert_pages/move_page/on_tab_switched/on_tab_closed with dirty flag coordination), PageManagerPanel QDockWidget (thumbnail grid with multi-select, toolbar with Rotate Left/Right "(modifies file)", Delete Pages, Add Pages), MainWindow Page Manager dock (F7 toggle in View menu), KPdfApp full wiring with file picker for Add Pages, viewport re-render on page changes. Feature 5 rotation = view-only (Ctrl+R); Feature 9 rotation = modifies PDF /Rotate attribute.
+- **Last session summary:** Feature 10 complete — MergeEngine service (probe_file/merge with MergeFileInfo/MergeResult dataclasses, wraps PyMuPDF insert_pdf, handles corrupt/password-protected/unreadable files with skip tracking and progress callbacks), MergeDialog self-contained modal QDialog (QListWidget with drag-to-reorder, Add Files/Remove Selected buttons, page count per file, error file text indicators, merge button disabled until >= 2 valid files, progress bar, Open Merged File button), MainWindow File menu "Merge Documents..." action (Ctrl+Shift+M), KPdfApp wiring (merge_requested -> MergeDialog modal -> merge_complete -> TabManager.open_file).
 
 Update this section at the end of every session.
 
