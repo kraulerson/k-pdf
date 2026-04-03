@@ -121,6 +121,7 @@ class KPdfApp:
         self._window.file_open_requested.connect(self._tab_manager.open_file)
         self._window.tab_close_requested.connect(self._on_close_current_tab)
         self._window.password_submitted.connect(self._on_password_submitted)
+        self._window.merge_requested.connect(self._on_merge_requested)
 
         # TabManager → View
         self._tab_manager.error_occurred.connect(self._window.show_error)
@@ -599,6 +600,24 @@ class KPdfApp:
     def _on_document_ready_page_mgmt(self, session_id: str, model: object) -> None:
         """Refresh page management panel when a new document loads."""
         self._page_management_presenter.on_tab_switched(session_id)
+
+    # --- Merge handlers ---
+
+    def _on_merge_requested(self) -> None:
+        """Show the Merge Documents dialog and handle result."""
+        from k_pdf.views.merge_dialog import MergeDialog
+
+        dialog = MergeDialog(self._window)
+        dialog.merge_complete.connect(self._on_merge_complete)
+        dialog.exec()
+
+    def _on_merge_complete(self, output_path_str: str) -> None:
+        """Open the merged file in a new tab.
+
+        Args:
+            output_path_str: Path to the merged output file.
+        """
+        self._tab_manager.open_file(Path(output_path_str))
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""

@@ -854,3 +854,55 @@ class TestMainWindowPageManager:
                 break
         assert found is not None
         assert found.shortcut().toString() == "F7"
+
+
+class TestMainWindowMergeAction:
+    def test_merge_action_in_file_menu(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        found = None
+        for action in window.findChildren(QAction):
+            if "Merge" in action.text() and "Documents" in action.text():
+                found = action
+                break
+        assert found is not None
+
+    def test_merge_action_shortcut(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        found = None
+        for action in window.findChildren(QAction):
+            if "Merge" in action.text() and "Documents" in action.text():
+                found = action
+                break
+        assert found is not None
+        assert found.shortcut().toString() == "Ctrl+Shift+M"
+
+    def test_merge_requested_signal_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "merge_requested")
+        spy = MagicMock()
+        window.merge_requested.connect(spy)
+
+    def test_merge_action_emits_signal(self, qtbot: object) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        with qtbot.waitSignal(window.merge_requested, timeout=1000):  # type: ignore[union-attr]
+            found = None
+            for action in window.findChildren(QAction):
+                if "Merge" in action.text() and "Documents" in action.text():
+                    found = action
+                    break
+            assert found is not None
+            found.trigger()
