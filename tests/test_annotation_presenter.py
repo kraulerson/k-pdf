@@ -481,3 +481,95 @@ class TestTabSwitchCancelsEditor:
         presenter.on_tab_switched("some-session-id")
         assert not note_editor.isVisible()
         assert presenter._tool_mode is ToolMode.NONE
+
+
+class TestHasSelection:
+    def test_false_initially(self) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        assert presenter.has_selection is False
+
+    def test_true_after_text_selected(self) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+        assert presenter.has_selection is True
+
+    def test_false_after_clear(self) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+        presenter._clear_selection()
+        assert presenter.has_selection is False
+
+
+class TestCopySelectedText:
+    def test_copies_text_to_clipboard(self) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+
+        with patch.object(engine, "extract_text_in_rects", return_value="Hello world"):
+            text = presenter.copy_selected_text()
+            assert text == "Hello world"
+            clipboard = QApplication.clipboard()
+            assert clipboard is not None
+            assert clipboard.text() == "Hello world"
+
+    def test_returns_empty_when_no_selection(self) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        text = presenter.copy_selected_text()
+        assert text == ""
+
+    def test_emits_text_copied(self, qtbot: object) -> None:
+        presenter, tm, engine, _toolbar = _make_presenter()
+        mock_dp = MagicMock()
+        model = _make_model()
+        mock_dp.model = model
+        tm.get_active_presenter = MagicMock(return_value=mock_dp)
+
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+
+        with patch.object(engine, "extract_text_in_rects", return_value="Hello"):
+            with qtbot.waitSignal(presenter.text_copied, timeout=1000) as blocker:  # type: ignore[union-attr]
+                presenter.copy_selected_text()
+            assert blocker.args == ["Hello"]
+
+    def test_no_document_returns_empty(self) -> None:
+        presenter, tm, _engine, _toolbar = _make_presenter()
+        tm.get_active_presenter = MagicMock(return_value=None)
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+        text = presenter.copy_selected_text()
+        assert text == ""
+
+
+class TestSelectionChanged:
+    def test_emits_on_text_selected(self, qtbot: object) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        with qtbot.waitSignal(presenter.selection_changed, timeout=1000) as blocker:  # type: ignore[union-attr]
+            presenter.on_text_selected(0, [(10.0, 20.0, 80.0, 30.0)])
+        assert blocker.args == [True]
+
+    def test_emits_false_on_clear(self, qtbot: object) -> None:
+        presenter, tm, _engine, _toolbar = _make_presenter()
+        mock_viewport = MagicMock()
+        tm.get_active_viewport = MagicMock(return_value=mock_viewport)
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+        with qtbot.waitSignal(presenter.selection_changed, timeout=1000) as blocker:  # type: ignore[union-attr]
+            presenter.set_tool_mode(ToolMode.NONE)
+        assert blocker.args == [False]
+
+    def test_emits_false_on_tab_switch(self, qtbot: object) -> None:
+        presenter, _tm, _engine, _toolbar = _make_presenter()
+        presenter._selected_rects = [(10.0, 20.0, 80.0, 30.0)]
+        presenter._selected_page = 0
+        with qtbot.waitSignal(presenter.selection_changed, timeout=1000) as blocker:  # type: ignore[union-attr]
+            presenter.on_tab_switched("some-session-id")
+        assert blocker.args == [False]
