@@ -23,10 +23,10 @@ Intake, Bible, or prior context.
 - **Project:** K-PDF
 - **Phase:** 2 (Construction)
 - **Track:** Standard
-- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes)
-- **Features remaining:** Features 6-12 + 7 implicit (see MVP Cutline)
+- **Features built:** Feature 1 (Open and Render PDF), Feature 2 (Multi-Tab), Feature 3 (Page Navigation), Feature 4 (Text Search), Feature 5 (Zoom, Rotate, Page Fit Modes), Feature 6 (Text Markup Annotations)
+- **Features remaining:** Features 7-12 + 7 implicit (see MVP Cutline)
 - **Known issues:** Coverage at 65%+ (threshold 65%)
-- **Last session summary:** Feature 5 complete — ZoomState/FitMode model, DocumentPresenter zoom/rotation/fit-mode methods, PdfViewport resize/wheel signals, ZoomToolBar with slider/input/presets/rotation, MainWindow View menu actions and keyboard shortcuts, KPdfApp full wiring
+- **Last session summary:** Feature 6 complete — AnnotationType/AnnotationData model, AnnotationEngine with highlight/underline/strikeout/delete, PdfViewport text selection mode with overlay, floating AnnotationToolbar with color picker, AnnotationPresenter coordinating selection/creation/deletion/dirty flag, MainWindow Tools menu with Ctrl+T toggle, KPdfApp full wiring
 
 Update this section at the end of every session.
 
