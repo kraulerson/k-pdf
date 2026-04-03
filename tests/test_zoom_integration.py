@@ -187,7 +187,8 @@ class TestZoomIntegration:
             # Toolbar should reflect tab 1's zoom
             assert abs(kpdf.window.zoom_toolbar._current_zoom - 2.0) < 0.01
 
-        kpdf.shutdown()
+            # Shutdown before temp dir cleanup to release file locks (Windows)
+            kpdf.shutdown()
 
     def test_toolbar_updates_on_presenter_zoom_change(self, valid_pdf: Path, qtbot: object) -> None:
         """Test that presenter zoom changes push back to toolbar display."""

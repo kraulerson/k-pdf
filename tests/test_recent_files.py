@@ -17,7 +17,7 @@ def test_add_and_list(tmp_path: Path) -> None:
     files = rf.list_recent(limit=10)
     assert len(files) == 2
     # Most recent first
-    assert files[0]["file_path"] == "/tmp/b.pdf"
+    assert files[0]["file_path"] == str(Path("/tmp/b.pdf"))
     db.close()
 
 

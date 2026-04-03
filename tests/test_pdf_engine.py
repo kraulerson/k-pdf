@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,6 +28,7 @@ class TestValidatePdfPath:
         with pytest.raises(PdfValidationError, match="not found"):
             self.engine.validate_pdf_path(nonexistent_pdf)
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="chmod has no effect on Windows")
     def test_raises_when_file_not_readable(self, unreadable_pdf: Path) -> None:
         """PdfValidationError raised with 'permission' when file is unreadable."""
         with pytest.raises(PdfValidationError, match="permission"):
