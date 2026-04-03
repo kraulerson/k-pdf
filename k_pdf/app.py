@@ -17,6 +17,7 @@ from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.annotation_presenter import AnnotationPresenter
+from k_pdf.presenters.annotation_summary_presenter import AnnotationSummaryPresenter
 from k_pdf.presenters.form_presenter import FormPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.page_management_presenter import PageManagementPresenter
@@ -76,6 +77,11 @@ class KPdfApp:
             tab_manager=self._tab_manager,
             panel=self._window.page_manager_panel,
         )
+        self._annotation_summary_presenter = AnnotationSummaryPresenter(
+            tab_manager=self._tab_manager,
+            annotation_engine=self._annotation_engine,
+            panel=self._window.annotation_summary_panel,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -114,6 +120,11 @@ class KPdfApp:
     def page_management_presenter(self) -> PageManagementPresenter:
         """Return the page management presenter."""
         return self._page_management_presenter
+
+    @property
+    def annotation_summary_presenter(self) -> AnnotationSummaryPresenter:
+        """Return the annotation summary presenter."""
+        return self._annotation_summary_presenter
 
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
@@ -237,6 +248,22 @@ class KPdfApp:
         self._tab_manager.tab_switched.connect(pm.on_tab_switched)
         self._tab_manager.tab_closed.connect(pm.on_tab_closed)
         self._tab_manager.document_ready.connect(self._on_document_ready_page_mgmt)
+
+        # Annotation summary panel wiring
+        asp = self._annotation_summary_presenter
+        self._tab_manager.document_ready.connect(self._on_document_ready_annotation_summary)
+        self._tab_manager.tab_switched.connect(asp.on_tab_switched)
+        self._tab_manager.tab_closed.connect(asp.on_tab_closed)
+        self._annotation_presenter.annotation_created.connect(asp.refresh_annotations)
+        self._annotation_presenter.annotation_deleted.connect(asp.refresh_annotations)
+        self._window.annotation_summary_panel.annotation_clicked.connect(asp.on_annotation_clicked)
+
+    def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
+        """Wire annotation summary panel for a newly loaded document."""
+        from k_pdf.core.document_model import DocumentModel
+
+        if isinstance(model, DocumentModel):
+            self._annotation_summary_presenter.on_document_ready(session_id, model)
 
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
