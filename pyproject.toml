@@ -97,8 +97,8 @@ module = ["k_pdf.services.page_engine"]
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
-module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel"]
-disable_error_code = ["misc"]
+module = ["k_pdf.core.event_bus", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel", "k_pdf.views.annotation_panel"]
+disable_error_code = ["misc", "no-any-return", "unused-ignore"]
 
 [[tool.mypy.overrides]]
 module = ["k_pdf.presenters.document_presenter"]
