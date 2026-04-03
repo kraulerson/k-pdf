@@ -117,6 +117,10 @@ module = ["k_pdf.presenters.annotation_presenter"]
 disable_error_code = ["misc"]
 
 [[tool.mypy.overrides]]
+module = ["k_pdf.presenters.form_presenter"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
 module = ["k_pdf.core.thumbnail_cache"]
 disable_error_code = ["misc", "untyped-decorator", "unused-ignore"]
 
