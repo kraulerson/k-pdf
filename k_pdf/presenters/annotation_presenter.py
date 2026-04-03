@@ -241,8 +241,9 @@ class AnnotationPresenter(QObject):
         model = doc_presenter.model
         content = self._engine.get_annotation_content(model.doc_handle, page_index, annot)
 
-        # Determine mode from annotation type tuple
-        annot_type = getattr(annot, "type", (0, 0))
+        # Determine mode from annotation type (via engine to avoid stale ref)
+        annot_type = self._engine.get_annotation_type(model.doc_handle, page_index, annot)
+        # Type 0 = Text (sticky note), Type 2 = FreeText (text box)
         mode = "sticky_note" if annot_type[0] == 0 else "text_box"
 
         if self._note_editor is not None:

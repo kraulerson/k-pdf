@@ -266,6 +266,33 @@ class AnnotationEngine:
                 return str(info.get("content", ""))
         return ""
 
+    def get_annotation_type(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        annot: Any,
+    ) -> tuple[int, str]:
+        """Get the type of an annotation as (type_code, type_name).
+
+        Re-fetches the annotation from the page by xref to avoid
+        stale-reference errors.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            annot: The pymupdf.Annot (used for xref lookup).
+
+        Returns:
+            Tuple of (type_code, type_name). Returns (0, "Text") for sticky notes,
+            (2, "FreeText") for text boxes, etc.
+        """
+        page = doc_handle[page_index]
+        target_xref = annot.xref
+        for page_annot in page.annots():
+            if page_annot.xref == target_xref:
+                return page_annot.type  # type: ignore[no-any-return]
+        return (0, "Text")
+
     def rects_to_quads(self, rects: list[tuple[float, float, float, float]]) -> list[Any]:
         """Convert word bounding-box rectangles to quad points.
 
