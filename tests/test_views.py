@@ -812,3 +812,45 @@ class TestViewportFormOverlays:
         viewport.add_form_overlay(QLineEdit(), page_index=0, rect=(72.0, 100.0, 300.0, 120.0))
         viewport.add_form_overlay(QCheckBox(), page_index=0, rect=(72.0, 140.0, 92.0, 160.0))
         assert len(viewport._form_overlays) == 2
+
+
+class TestMainWindowPageManager:
+    def test_page_manager_panel_exists(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+        from k_pdf.views.page_manager_panel import PageManagerPanel
+
+        w = MainWindow()
+        assert isinstance(w.page_manager_panel, PageManagerPanel)
+
+    def test_page_manager_panel_initially_hidden(self) -> None:
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        assert not w.page_manager_panel.isVisible()
+
+    def test_view_menu_has_page_manager_toggle(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Page" in action.text() and "Manager" in action.text():
+                found = action
+                break
+        assert found is not None
+
+    def test_page_manager_toggle_shortcut_f7(self) -> None:
+        from PySide6.QtGui import QAction
+
+        from k_pdf.views.main_window import MainWindow
+
+        w = MainWindow()
+        found = None
+        for action in w.findChildren(QAction):
+            if "Page" in action.text() and "Manager" in action.text():
+                found = action
+                break
+        assert found is not None
+        assert found.shortcut().toString() == "F7"

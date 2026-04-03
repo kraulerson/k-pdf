@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from k_pdf.views.navigation_panel import NavigationPanel
+from k_pdf.views.page_manager_panel import PageManagerPanel
 from k_pdf.views.search_bar import SearchBar
 from k_pdf.views.zoom_toolbar import ZoomToolBar
 
@@ -128,6 +129,11 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._nav_panel)
         self._nav_panel.hide()
 
+        # Page Manager panel (left dock)
+        self._page_manager_panel = PageManagerPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self._page_manager_panel)
+        self._page_manager_panel.hide()
+
         # Status bar
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -167,6 +173,11 @@ class MainWindow(QMainWindow):
     def zoom_toolbar(self) -> ZoomToolBar:
         """Return the zoom toolbar widget."""
         return self._zoom_toolbar
+
+    @property
+    def page_manager_panel(self) -> PageManagerPanel:
+        """Return the page manager dock widget."""
+        return self._page_manager_panel
 
     @property
     def tools_menu(self) -> QMenu:
@@ -228,6 +239,11 @@ class MainWindow(QMainWindow):
         toggle_nav.setText("Navigation &Panel")
         toggle_nav.setShortcut(QKeySequence("F5"))
         view_menu.addAction(toggle_nav)
+
+        toggle_page_mgr = self._page_manager_panel.toggleViewAction()
+        toggle_page_mgr.setText("Page &Manager")
+        toggle_page_mgr.setShortcut(QKeySequence("F7"))
+        view_menu.addAction(toggle_page_mgr)
 
         view_menu.addSeparator()
 
