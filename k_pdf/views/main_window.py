@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 
 from k_pdf.views.navigation_panel import NavigationPanel
 from k_pdf.views.search_bar import SearchBar
+from k_pdf.views.zoom_toolbar import ZoomToolBar
 
 logger = logging.getLogger("k_pdf.views.main_window")
 
@@ -69,6 +70,11 @@ class MainWindow(QMainWindow):
     file_open_requested = Signal(Path)
     password_submitted = Signal(Path, str)  # (path, password)
     tab_close_requested = Signal()
+    zoom_in_triggered = Signal()
+    zoom_out_triggered = Signal()
+    zoom_reset_triggered = Signal()
+    rotate_cw_triggered = Signal()
+    rotate_ccw_triggered = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -124,6 +130,10 @@ class MainWindow(QMainWindow):
         self._status_bar.addPermanentWidget(self._page_label)
         self._status_bar.addPermanentWidget(self._zoom_label)
 
+        # Zoom toolbar
+        self._zoom_toolbar = ZoomToolBar(self)
+        self.addToolBar(Qt.ToolBarArea.TopToolBarArea, self._zoom_toolbar)
+
         # Menus
         self._setup_menus()
 
@@ -146,6 +156,11 @@ class MainWindow(QMainWindow):
     def search_bar(self) -> SearchBar:
         """Return the search bar widget."""
         return self._search_bar
+
+    @property
+    def zoom_toolbar(self) -> ZoomToolBar:
+        """Return the zoom toolbar widget."""
+        return self._zoom_toolbar
 
     def _setup_menus(self) -> None:
         """Create the menu bar with File > Open, Close Tab, and Quit."""
@@ -188,6 +203,40 @@ class MainWindow(QMainWindow):
         toggle_nav.setText("Navigation &Panel")
         toggle_nav.setShortcut(QKeySequence("F5"))
         view_menu.addAction(toggle_nav)
+
+        view_menu.addSeparator()
+
+        rotate_cw_action = QAction("Rotate &Clockwise", self)
+        rotate_cw_action.setShortcut(QKeySequence("Ctrl+R"))
+        rotate_cw_action.setToolTip("Rotate page 90 degrees clockwise")
+        rotate_cw_action.triggered.connect(self.rotate_cw_triggered.emit)
+        view_menu.addAction(rotate_cw_action)
+
+        rotate_ccw_action = QAction("Rotate C&ounter-Clockwise", self)
+        rotate_ccw_action.setShortcut(QKeySequence("Ctrl+Shift+R"))
+        rotate_ccw_action.setToolTip("Rotate page 90 degrees counter-clockwise")
+        rotate_ccw_action.triggered.connect(self.rotate_ccw_triggered.emit)
+        view_menu.addAction(rotate_ccw_action)
+
+        view_menu.addSeparator()
+
+        zoom_in_action = QAction("Zoom &In", self)
+        zoom_in_action.setShortcut(QKeySequence("Ctrl+="))
+        zoom_in_action.setToolTip("Zoom in")
+        zoom_in_action.triggered.connect(self.zoom_in_triggered.emit)
+        view_menu.addAction(zoom_in_action)
+
+        zoom_out_action = QAction("Zoom &Out", self)
+        zoom_out_action.setShortcut(QKeySequence("Ctrl+-"))
+        zoom_out_action.setToolTip("Zoom out")
+        zoom_out_action.triggered.connect(self.zoom_out_triggered.emit)
+        view_menu.addAction(zoom_out_action)
+
+        zoom_reset_action = QAction("&Reset Zoom", self)
+        zoom_reset_action.setShortcut(QKeySequence("Ctrl+0"))
+        zoom_reset_action.setToolTip("Reset zoom to 100%")
+        zoom_reset_action.triggered.connect(self.zoom_reset_triggered.emit)
+        view_menu.addAction(zoom_reset_action)
 
     def _show_search_bar(self) -> None:
         """Show the search bar and focus the input field."""

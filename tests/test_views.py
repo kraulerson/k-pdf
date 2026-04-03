@@ -371,6 +371,91 @@ class TestMainWindow:
         assert find_action is not None
         assert find_action.shortcut().toString() == "Ctrl+F"
 
+    def test_zoom_toolbar_exists(self) -> None:
+        """Test that MainWindow has a zoom toolbar."""
+        from k_pdf.views.main_window import MainWindow
+        from k_pdf.views.zoom_toolbar import ZoomToolBar
+
+        window = MainWindow()
+        assert isinstance(window.zoom_toolbar, ZoomToolBar)
+
+    def test_view_menu_has_rotate_cw(self) -> None:
+        """Test View menu has Rotate Clockwise action with Ctrl+R."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        # Find the Rotate Clockwise action via window.findChildren
+        from PySide6.QtGui import QAction
+
+        found = None
+        for action in window.findChildren(QAction):
+            text = action.text()
+            if "Clockwise" in text and "Counter" not in text:
+                found = action
+                break
+        assert found is not None
+        assert found.shortcut().toString() == "Ctrl+R"
+
+    def test_view_menu_has_rotate_ccw(self) -> None:
+        """Test View menu has Rotate Counter-Clockwise action with Ctrl+Shift+R."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        from PySide6.QtGui import QAction
+
+        found = None
+        for action in window.findChildren(QAction):
+            if "ounter-Clockwise" in action.text():
+                found = action
+                break
+        assert found is not None
+        assert found.shortcut().toString() == "Ctrl+Shift+R"
+
+    def test_zoom_in_action_signal(self) -> None:
+        """Test that Ctrl+= zoom in action exists."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "zoom_in_triggered")
+        spy = MagicMock()
+        window.zoom_in_triggered.connect(spy)
+
+    def test_zoom_out_action_signal(self) -> None:
+        """Test that Ctrl+- zoom out action exists."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "zoom_out_triggered")
+        spy = MagicMock()
+        window.zoom_out_triggered.connect(spy)
+
+    def test_zoom_reset_action_signal(self) -> None:
+        """Test that Ctrl+0 reset zoom action exists."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "zoom_reset_triggered")
+        spy = MagicMock()
+        window.zoom_reset_triggered.connect(spy)
+
+    def test_rotate_cw_action_signal(self) -> None:
+        """Test that rotate CW menu action exists as a signal."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "rotate_cw_triggered")
+        spy = MagicMock()
+        window.rotate_cw_triggered.connect(spy)
+
+    def test_rotate_ccw_action_signal(self) -> None:
+        """Test that rotate CCW menu action exists as a signal."""
+        from k_pdf.views.main_window import MainWindow
+
+        window = MainWindow()
+        assert hasattr(window, "rotate_ccw_triggered")
+        spy = MagicMock()
+        window.rotate_ccw_triggered.connect(spy)
+
 
 class TestKPdfAppIntegration:
     """Tests for KPdfApp wiring with TabManager."""
