@@ -129,6 +129,8 @@ jobs:
           --standalone
           --assume-yes-for-downloads
           --output-dir=build
+          --noinclude-custom-mode=pymupdf
+          --nofollow-import-to=pymupdf.mupdf
           --nofollow-import-to=PySide6.QtWebEngine
           --nofollow-import-to=PySide6.Qt3D*
           --nofollow-import-to=PySide6.QtMultimedia
@@ -139,7 +141,7 @@ jobs:
           --nofollow-import-to=PySide6.QtSerialPort
           --nofollow-import-to=PySide6.QtTest
           k_pdf/main.py
-        timeout-minutes: 30
+        timeout-minutes: 45
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
