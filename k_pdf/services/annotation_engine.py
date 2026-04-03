@@ -351,6 +351,68 @@ class AnnotationEngine:
             "rect": (0.0, 0.0, 0.0, 0.0),
         }
 
+    def extract_text_in_rects(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        rects: list[tuple[float, float, float, float]],
+    ) -> str:
+        """Extract the text content within the given rectangles.
+
+        Filters words whose bounding boxes intersect any of the given rects,
+        orders them by visual position (block_no, line_no, word_no), and
+        joins them with spaces (newline between different visual lines).
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            rects: List of (x0, y0, x1, y1) bounding rectangles.
+
+        Returns:
+            The extracted text string. Empty string if no words found.
+        """
+        if not rects:
+            return ""
+
+        words = self.get_text_words(doc_handle, page_index)
+        if not words:
+            return ""
+
+        # Filter words that intersect any selection rect
+        selected_words: list[tuple[Any, ...]] = []
+        for w in words:
+            wx0, wy0, wx1, wy1 = w[0], w[1], w[2], w[3]
+            for rx0, ry0, rx1, ry1 in rects:
+                if wx1 >= rx0 and wx0 <= rx1 and wy1 >= ry0 and wy0 <= ry1:
+                    selected_words.append(w)
+                    break
+
+        if not selected_words:
+            return ""
+
+        # Sort by block_no, line_no, word_no to preserve reading order
+        selected_words.sort(key=lambda w: (w[5], w[6], w[7]))
+
+        # Group by (block_no, line_no) and join
+        lines: list[str] = []
+        current_key: tuple[Any, Any] | None = None
+        current_line_words: list[str] = []
+
+        for w in selected_words:
+            key = (w[5], w[6])
+            if key != current_key:
+                if current_line_words:
+                    lines.append(" ".join(current_line_words))
+                current_line_words = [str(w[4])]
+                current_key = key
+            else:
+                current_line_words.append(str(w[4]))
+
+        if current_line_words:
+            lines.append(" ".join(current_line_words))
+
+        return "\n".join(lines)
+
     def rects_to_quads(self, rects: list[tuple[float, float, float, float]]) -> list[Any]:
         """Convert word bounding-box rectangles to quad points.
 
