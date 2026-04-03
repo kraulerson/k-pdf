@@ -674,3 +674,19 @@ class TestMainWindowToolsMenu:
         actions = window.tools_menu.actions()
         sel_action = next(a for a in actions if "Text Selection" in a.text())
         assert sel_action.shortcut().toString() == "Ctrl+T"
+
+
+class TestKPdfAppAnnotationWiring:
+    def test_app_has_annotation_presenter(self) -> None:
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert kpdf.annotation_presenter is not None
+        kpdf.shutdown()
+
+    def test_app_has_annotation_toolbar(self) -> None:
+        app_instance = QApplication.instance()
+        assert app_instance is not None
+        kpdf = KPdfApp(app_instance)
+        assert kpdf._annotation_toolbar is not None
+        kpdf.shutdown()

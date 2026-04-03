@@ -15,9 +15,12 @@ from PySide6.QtWidgets import QApplication
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
+from k_pdf.presenters.annotation_presenter import AnnotationPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
+from k_pdf.services.annotation_engine import AnnotationEngine
+from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
 
 logger = logging.getLogger("k_pdf.app")
@@ -47,6 +50,13 @@ class KPdfApp:
         self._search_presenter = SearchPresenter(
             tab_manager=self._tab_manager,
         )
+        self._annotation_engine = AnnotationEngine()
+        self._annotation_toolbar = AnnotationToolbar()
+        self._annotation_presenter = AnnotationPresenter(
+            tab_manager=self._tab_manager,
+            engine=self._annotation_engine,
+            toolbar=self._annotation_toolbar,
+        )
         self._initial_file = file_path
 
         self._connect_signals()
@@ -75,6 +85,11 @@ class KPdfApp:
     def search_presenter(self) -> SearchPresenter:
         """Return the search presenter."""
         return self._search_presenter
+
+    @property
+    def annotation_presenter(self) -> AnnotationPresenter:
+        """Return the annotation presenter."""
+        return self._annotation_presenter
 
     def _connect_signals(self) -> None:
         """Wire MainWindow signals to TabManager and vice versa."""
@@ -145,6 +160,20 @@ class KPdfApp:
 
         # When a new tab's document is ready, wire its zoom signals
         self._tab_manager.document_ready.connect(self._on_document_ready_zoom)
+
+        # Annotation wiring
+        # MainWindow Tools menu -> AnnotationPresenter
+        self._window.text_selection_toggled.connect(self._annotation_presenter.set_selection_mode)
+
+        # AnnotationPresenter -> re-render on create/delete
+        self._annotation_presenter.annotation_created.connect(self._on_annotation_changed)
+        self._annotation_presenter.annotation_deleted.connect(self._on_annotation_changed)
+
+        # AnnotationPresenter -> dirty flag -> tab title
+        self._annotation_presenter.dirty_changed.connect(self._on_annotation_dirty_changed)
+
+        # When a new document loads, wire viewport annotation signals
+        self._tab_manager.document_ready.connect(self._on_document_ready_annotation)
 
     def _on_tab_count_changed(self, count: int) -> None:
         """Toggle between welcome screen and tab view."""
@@ -288,8 +317,47 @@ class KPdfApp:
             viewport.viewport_resized.connect(self._on_viewport_resized)
             viewport.zoom_at_cursor.connect(self._on_zoom_at_cursor)
 
+    # --- Annotation handlers ---
+
+    def _on_annotation_changed(self) -> None:
+        """Re-render current page after annotation create/delete."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            # Invalidate cache and re-request visible pages
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
+
+    def _on_annotation_dirty_changed(self, dirty: bool) -> None:
+        """Update tab title with dirty indicator."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and presenter.model is not None and viewport is not None:
+            name = presenter.model.file_path.name
+            title = f"* {name}" if dirty else name
+            idx = self._window.tab_widget.indexOf(viewport)
+            if idx >= 0:
+                self._window.tab_widget.setTabText(idx, title)
+
+    def _on_document_ready_annotation(self, session_id: str, model: object) -> None:
+        """Wire viewport annotation signals for a newly loaded document tab."""
+        viewport = self._tab_manager.get_active_viewport()
+        presenter = self._tab_manager.get_active_presenter()
+        if viewport is not None:
+            viewport.set_annotation_engine(self._annotation_engine)
+            if presenter is not None and presenter.model is not None:
+                viewport.set_doc_handle(presenter.model.doc_handle)
+            viewport.text_selected.connect(self._annotation_presenter.on_text_selected)
+            viewport.annotation_delete_requested.connect(
+                self._annotation_presenter.delete_annotation
+            )
+
     def shutdown(self) -> None:
         """Clean up resources before exit."""
+        self._annotation_toolbar.hide()
         self._search_presenter.shutdown()
         self._nav_presenter.shutdown()
         self._tab_manager.shutdown()
