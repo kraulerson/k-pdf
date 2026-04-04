@@ -206,7 +206,7 @@ jobs:
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 600
+            --wait --timeout 1800
 
           # If we get here, notarytool exited 0 = Accepted
           # (notarytool exits non-zero on Invalid/rejection)
