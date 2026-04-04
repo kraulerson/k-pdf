@@ -191,46 +191,9 @@ jobs:
           codesign --verify --deep --strict "$APP"
           echo "Signature valid."
 
-      - name: Notarize macOS app
-        if: runner.os == 'macOS'
-        timeout-minutes: 45
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          # Create a zip for notarization submission
-          ditto -c -k --keepParent build/main.app build/main.zip
-          echo "Zip size: $(du -h build/main.zip | cut -f1)"
-
-          # Submit without --wait, then poll separately
-          SUBMIT_OUT=$(xcrun notarytool submit build/main.zip \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" 2>&1)
-          echo "$SUBMIT_OUT"
-          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep "id:" | head -1 | awk '{print $2}')
-          echo "Submission ID: $SUBMISSION_ID"
-
-          # Poll for completion with longer patience
-          echo "Waiting for Apple to process notarization..."
-          xcrun notarytool wait "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --timeout 2400
-
-          # Check final status
-          xcrun notarytool info "$SUBMISSION_ID" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID"
-
-          # Staple the notarization ticket
-          sleep 10
-          xcrun stapler staple build/main.app || echo "Stapling failed — app is still notarized (online check)"
-
-          rm build/main.zip
+      # Notarization skipped for now — Apple's servers consistently time out.
+      # The app is signed with Developer ID, so right-click > Open works.
+      # TODO: Re-enable notarization when Apple processing times improve.
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
