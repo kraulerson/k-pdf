@@ -97,6 +97,7 @@ class NavigationPanel(QDockWidget):
         Args:
             nodes: Top-level outline nodes. Empty list shows "no bookmarks" label.
         """
+        logger.debug("set_outline called with %d nodes", len(nodes))
         self._outline_tree.clear()
         if not nodes:
             self._outline_stack.setCurrentIndex(1)

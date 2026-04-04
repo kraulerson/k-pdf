@@ -92,10 +92,12 @@ class NavigationPresenter(QObject):
         # Fetch outline
         outline = get_outline(model.doc_handle)
         self._outlines[session_id] = outline
+        logger.debug("outline loaded for %s: %d top-level nodes", session_id, len(outline))
 
         # If this is the active tab, push to view
         if session_id == self._tab_manager.active_session_id:
             self._active_session_id = session_id
+            logger.debug("emitting outline_ready with %d nodes", len(outline))
             self.outline_ready.emit(outline)
             self._connect_viewport()
 

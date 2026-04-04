@@ -90,6 +90,17 @@ class TestPageManagerPanelSignals:
         with qtbot.waitSignal(panel.add_clicked, timeout=1000):
             panel._add_action.trigger()
 
+    def test_page_clicked_signal(self, qtbot) -> None:  # type: ignore[no-untyped-def]
+        panel = PageManagerPanel()
+        qtbot.addWidget(panel)
+        panel.set_thumbnails([QPixmap(100, 130) for _ in range(3)])
+        spy = []
+        panel.page_clicked.connect(lambda idx: spy.append(idx))
+        item = panel._thumbnail_list.item(1)
+        assert item is not None
+        panel._on_item_clicked(item)
+        assert spy == [1]
+
 
 class TestPageManagerPanelProgress:
     def test_show_progress(self, qtbot) -> None:  # type: ignore[no-untyped-def]

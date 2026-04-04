@@ -39,6 +39,7 @@ class PageManagerPanel(QDockWidget):
     add_clicked = Signal()
     page_moved = Signal(int, int)  # (from_index, to_index)
     selection_changed = Signal(list)  # list of selected indices
+    page_clicked = Signal(int)  # page index — emitted on single-click for navigation
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the page manager panel."""
@@ -97,6 +98,7 @@ class PageManagerPanel(QDockWidget):
         self._thumbnail_list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self._thumbnail_list.setDefaultDropAction(Qt.DropAction.MoveAction)
         self._thumbnail_list.itemSelectionChanged.connect(self._on_selection_changed)
+        self._thumbnail_list.itemClicked.connect(self._on_item_clicked)
         self._thumbnail_list.model().rowsMoved.connect(self._on_rows_moved)
         layout.addWidget(self._thumbnail_list)
 
@@ -180,6 +182,12 @@ class PageManagerPanel(QDockWidget):
     def _on_selection_changed(self) -> None:
         """Emit selection_changed with current selected indices."""
         self.selection_changed.emit(self.get_selected_pages())
+
+    def _on_item_clicked(self, item: QListWidgetItem) -> None:
+        """Handle single thumbnail click — emit page_clicked for navigation."""
+        page_index = item.data(Qt.ItemDataRole.UserRole)
+        if page_index is not None:
+            self.page_clicked.emit(int(page_index))
 
     def _on_rows_moved(self) -> None:
         """Handle internal drag-drop reorder.

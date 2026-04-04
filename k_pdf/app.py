@@ -282,6 +282,7 @@ class KPdfApp:
         pm_panel.delete_clicked.connect(self._on_page_delete)
         pm_panel.add_clicked.connect(self._on_page_add)
         pm_panel.page_moved.connect(pm.move_page)
+        pm_panel.page_clicked.connect(self._nav_presenter.navigate_to_page)
         pm.pages_changed.connect(self._on_pages_changed)
         pm.dirty_changed.connect(self._on_page_dirty_changed)
         self._tab_manager.tab_switched.connect(pm.on_tab_switched)
