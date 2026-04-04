@@ -180,8 +180,8 @@ class KPdfApp:
         panel.thumbnail_clicked.connect(nav.navigate_to_page)
         panel.outline_clicked.connect(nav.navigate_to_page)
 
-        # Clear panel on tab switch and when all tabs close
-        self._tab_manager.tab_switched.connect(lambda _: panel.clear())
+        # Clear panel before re-populating on tab switch, and when all tabs close
+        nav.clear_requested.connect(panel.clear)
         self._tab_manager.tab_count_changed.connect(self._on_nav_tab_count)
 
         # SearchBar -> SearchPresenter
@@ -696,10 +696,23 @@ class KPdfApp:
             self._window.set_theme_mode(mode)
 
     def _on_inversion_changed(self, inverted: bool) -> None:
-        """Update viewport inversion when theme inversion state changes."""
+        """Update viewport inversion when theme inversion state changes.
+
+        Sets the inversion flag on the active viewport, then invalidates
+        the render cache and re-renders visible pages so already-displayed
+        pages are immediately updated with the new inversion state.
+        """
         viewport = self._tab_manager.get_active_viewport()
         if viewport is not None:
             viewport.set_invert_pdf(inverted)
+            # Re-render visible pages so existing pixmaps get inverted
+            presenter = self._tab_manager.get_active_presenter()
+            if presenter is not None:
+                presenter.cache.invalidate()
+                presenter._pending_renders.clear()
+                first, last = viewport.get_visible_page_range()
+                if first >= 0:
+                    presenter.request_pages(list(range(first, last + 1)))
 
     # --- Page management handlers ---
 

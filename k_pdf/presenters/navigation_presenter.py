@@ -27,6 +27,7 @@ class NavigationPresenter(QObject):
     thumbnail_ready = Signal(int, object)  # (page_index, QPixmap)
     outline_ready = Signal(list)  # list[OutlineNode]
     active_thumbnail_changed = Signal(int)  # current page
+    clear_requested = Signal()  # emitted before re-populating on tab switch
 
     def __init__(
         self,
@@ -101,6 +102,9 @@ class NavigationPresenter(QObject):
     def _on_tab_switched(self, session_id: str) -> None:
         """Handle tab switch — swap navigation data."""
         self._active_session_id = session_id
+
+        # Clear previous tab's data before re-populating
+        self.clear_requested.emit()
 
         # Push cached outline
         outline = self._outlines.get(session_id, [])
