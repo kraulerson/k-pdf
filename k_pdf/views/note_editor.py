@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, override
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QEvent, Qt, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -62,6 +62,8 @@ class NoteEditor(QWidget):
         self._target_page: int = 0
         self._target_annot: Any | None = None
         self._mode: str = "sticky_note"
+        self._saving: bool = False
+        self._activated: bool = False
 
     def show_for_new(self, mode: str, page_index: int, x: int, y: int) -> None:
         """Position editor for a new annotation.
@@ -107,24 +109,54 @@ class NoteEditor(QWidget):
         self.show()
         self._text_edit.setFocus()
 
+    @override
+    def event(self, ev: QEvent) -> bool:
+        """Intercept window activation/deactivation for auto-save on click-away.
+
+        Tracks WindowActivate so that auto-save only fires after the
+        editor has actually been activated (prevents spurious saves in
+        headless or test environments). A guard flag prevents re-entrant
+        saves when the empty-content confirmation dialog itself triggers
+        a deactivation event.
+        """
+        if ev.type() == QEvent.Type.WindowActivate:
+            self._activated = True
+        elif (
+            ev.type() == QEvent.Type.WindowDeactivate
+            and self._activated
+            and self.isVisible()
+            and not self._saving
+        ):
+            self._on_save()
+            return True
+        return super().event(ev)
+
     def _on_save(self) -> None:
-        """Handle Save click — emit editing_finished or show confirmation for empty."""
-        content = self._text_edit.toPlainText()
-        if not content:
-            result = QMessageBox.question(
-                self,
-                "Empty Content",
-                "Save annotation with empty content?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if result != QMessageBox.StandardButton.Yes:
-                return
-        self.editing_finished.emit(content)
-        self.hide()
+        """Save content: emit editing_finished, or confirm if empty."""
+        if self._saving:
+            return
+        self._saving = True
+        try:
+            content = self._text_edit.toPlainText()
+            if not content:
+                result = QMessageBox.question(
+                    self,
+                    "Empty Content",
+                    "Save annotation with empty content?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if result != QMessageBox.StandardButton.Yes:
+                    return
+            self.editing_finished.emit(content)
+            self._activated = False
+            self.hide()
+        finally:
+            self._saving = False
 
     def _on_cancel(self) -> None:
         """Handle Cancel click — emit editing_cancelled and hide."""
+        self._activated = False
         self.editing_cancelled.emit()
         self.hide()
 
