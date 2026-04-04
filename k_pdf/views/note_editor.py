@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, override
 
-from PySide6.QtCore import QEvent, Qt, Signal
+from PySide6.QtCore import QEvent, Qt, QTimer, Signal
 from PySide6.QtGui import QKeyEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -64,6 +64,7 @@ class NoteEditor(QWidget):
         self._mode: str = "sticky_note"
         self._saving: bool = False
         self._activated: bool = False
+        self._ready: bool = False
 
     def show_for_new(self, mode: str, page_index: int, x: int, y: int) -> None:
         """Position editor for a new annotation.
@@ -77,6 +78,8 @@ class NoteEditor(QWidget):
         self._mode = mode
         self._target_page = page_index
         self._target_annot = None
+        self._activated = False
+        self._ready = False
         self._text_edit.clear()
         self._text_edit.document().setModified(False)
         self.move(x, y)
@@ -105,11 +108,23 @@ class NoteEditor(QWidget):
         self._mode = mode
         self._target_page = page_index
         self._target_annot = annot
+        self._activated = False
+        self._ready = False
         self._text_edit.setPlainText(content)
         self._text_edit.document().setModified(False)
         self.move(x, y)
         self.show()
         self._text_edit.setFocus()
+
+    def _mark_ready(self) -> None:
+        """Mark the editor as ready for deactivation handling.
+
+        Called after a short delay once the window has been activated,
+        preventing the immediate WindowDeactivate (which fires before
+        the editor is fully visible) from closing the editor.
+        """
+        if self._activated:
+            self._ready = True
 
     @override
     def event(self, ev: QEvent) -> bool:
@@ -117,15 +132,19 @@ class NoteEditor(QWidget):
 
         Tracks WindowActivate so that auto-save only fires after the
         editor has actually been activated (prevents spurious saves in
-        headless or test environments). A guard flag prevents re-entrant
+        headless or test environments). A short timer delay between
+        activation and readiness prevents the initial WindowDeactivate
+        (which fires before the editor is fully visible) from
+        dismissing it immediately. A guard flag prevents re-entrant
         saves when the empty-content confirmation dialog itself triggers
         a deactivation event.
         """
         if ev.type() == QEvent.Type.WindowActivate:
             self._activated = True
+            QTimer.singleShot(300, self._mark_ready)
         elif (
             ev.type() == QEvent.Type.WindowDeactivate
-            and self._activated
+            and self._ready
             and self.isVisible()
             and not self._saving
         ):
@@ -155,6 +174,7 @@ class NoteEditor(QWidget):
                     return
             self.editing_finished.emit(content)
             self._activated = False
+            self._ready = False
             self.hide()
         finally:
             self._saving = False
@@ -162,6 +182,7 @@ class NoteEditor(QWidget):
     def _on_cancel(self) -> None:
         """Handle Cancel click — emit editing_cancelled and hide."""
         self._activated = False
+        self._ready = False
         self.editing_cancelled.emit()
         self.hide()
 
