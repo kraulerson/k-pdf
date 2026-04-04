@@ -58,9 +58,6 @@ jobs:
             # Include resource files (QSS themes, icons)
             --include-data-dir=k_pdf/resources=k_pdf/resources
             # Exclude pymupdf/fitz from Nuitka C compilation entirely.
-            # PyMuPDF's mupdf.py (2.5 MB SWIG binding) generates a C file
-            # that takes 30+ min to compile and uses 2+ GB RAM, causing OOM
-            # on CI runners. Instead, we copy the packages as-is post-build.
             --nofollow-import-to=pymupdf
             --nofollow-import-to=fitz
             --no-deployment-flag=excluded-module-usage
@@ -88,7 +85,12 @@ jobs:
           )
 
           # Platform-specific flags
-          if [[ "$RUNNER_OS" == "Windows" ]]; then
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            NUITKA_ARGS+=(
+              --macos-create-app-bundle
+              --macos-app-icon=k_pdf/resources/icons/k-pdf-icon.icns
+            )
+          elif [[ "$RUNNER_OS" == "Windows" ]]; then
             NUITKA_ARGS+=(
               --windows-console-mode=disable
               --windows-icon-from-ico=k_pdf/resources/icons/k-pdf-icon.ico
@@ -105,20 +107,103 @@ jobs:
       - name: Copy PyMuPDF packages into standalone dist
         shell: bash
         run: |
-          # PyMuPDF was excluded from Nuitka compilation (too large for C
-          # compilation). Copy the full packages from site-packages so they
-          # are available as standard Python imports at runtime.
           PYMUPDF_DIR=$(uv run python -c "import pymupdf, pathlib; print(pathlib.Path(pymupdf.__file__).parent)")
           FITZ_DIR=$(uv run python -c "import fitz, pathlib; print(pathlib.Path(fitz.__file__).parent)")
 
-          DIST=build/main.dist
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            DIST=build/main.app/Contents/MacOS
+          else
+            DIST=build/main.dist
+          fi
 
-          # Remove any partial data-only dirs Nuitka created, then copy full packages
           rm -rf "$DIST/pymupdf" "$DIST/fitz"
           cp -R "$PYMUPDF_DIR" "$DIST/pymupdf"
           cp -R "$FITZ_DIR" "$DIST/fitz"
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
+
+      # --- macOS: Sign, notarize, and create DMG ---
+      - name: Import signing certificate (macOS)
+        if: runner.os == 'macOS'
+        env:
+          APPLE_CERTIFICATE_P12: ${{ secrets.APPLE_CERTIFICATE_P12 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          # Create a temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/signing.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 16)
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import the certificate
+          echo "$APPLE_CERTIFICATE_P12" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+          rm $RUNNER_TEMP/certificate.p12
+
+          # Allow codesign to access the keychain
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Add to search list
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          # Install Apple intermediate certificate for Developer ID
+          curl -sO https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security add-certificates -k "$KEYCHAIN_PATH" DeveloperIDG2CA.cer
+          rm DeveloperIDG2CA.cer
+
+          # Verify
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Sign macOS app bundle
+        if: runner.os == 'macOS'
+        run: |
+          IDENTITY="Developer ID Application: Karl Raulerson (M6M33BX75L)"
+          APP=build/main.app
+
+          # Sign all Mach-O binaries inside-out
+          # First: all .so and .dylib files
+          find "$APP" -type f \( -name '*.so' -o -name '*.dylib' \) -exec \
+            codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+
+          # Then: the main executable
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" \
+            "$APP/Contents/MacOS/main"
+
+          # Finally: the bundle itself
+          codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
+
+          echo "Signing complete. Verifying..."
+          codesign --verify --deep --strict "$APP"
+          echo "Signature valid."
+
+      - name: Notarize macOS app
+        if: runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Create a zip for notarization submission
+          ditto -c -k --keepParent build/main.app build/main.zip
+
+          # Submit for notarization
+          xcrun notarytool submit build/main.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait --timeout 600
+
+          # Staple the notarization ticket to the app
+          xcrun stapler staple build/main.app
+
+          echo "Notarization and stapling complete."
+          rm build/main.zip
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
@@ -131,8 +216,11 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build
-          tar -czf "K-PDF-${{ steps.version.outputs.version }}-macos.tar.gz" main.dist/
-          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.tar.gz"
+          hdiutil create -volname "K-PDF" \
+            -srcfolder main.app \
+            -ov -format UDZO \
+            "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
+          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
@@ -148,6 +236,7 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             build/K-PDF-*.tar.gz
+            build/K-PDF-*.dmg
             build/K-PDF-*.zip
           retention-days: 7
 
@@ -175,7 +264,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/K-PDF-linux/K-PDF-*.tar.gz
-            artifacts/K-PDF-macos/K-PDF-*.tar.gz
+            artifacts/K-PDF-macos/K-PDF-*.dmg
             artifacts/K-PDF-windows/K-PDF-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
