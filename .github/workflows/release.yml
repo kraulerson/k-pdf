@@ -88,7 +88,6 @@ jobs:
           # Platform-specific flags
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             NUITKA_ARGS+=(
-              --macos-create-app-bundle
               --macos-app-icon=k_pdf/resources/icons/k-pdf-icon.icns
             )
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
@@ -114,11 +113,7 @@ jobs:
           PYMUPDF_DIR=$(uv run python -c "import pymupdf, pathlib; print(pathlib.Path(pymupdf.__file__).parent)")
           FITZ_DIR=$(uv run python -c "import fitz, pathlib; print(pathlib.Path(fitz.__file__).parent)")
 
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            DIST=build/main.app/Contents/MacOS
-          else
-            DIST=build/main.dist
-          fi
+          DIST=build/main.dist
 
           # Remove any partial data-only dirs Nuitka created, then copy full packages
           rm -rf "$DIST/pymupdf" "$DIST/fitz"
@@ -126,19 +121,6 @@ jobs:
           cp -R "$FITZ_DIR" "$DIST/fitz"
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
-
-      - name: Sign macOS app bundle
-        if: runner.os == 'macOS'
-        run: |
-          cd build/main.app/Contents
-
-          # Sign every Mach-O file individually (skip .py files)
-          find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
-          find MacOS -name 'main' -type f -exec codesign --force --sign - {} \;
-          cd ../../..
-
-          # Remove any quarantine extended attributes
-          xattr -cr build/main.app
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
@@ -151,12 +133,8 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build
-          # Create a DMG from the .app bundle
-          hdiutil create -volname "K-PDF" \
-            -srcfolder main.app \
-            -ov -format UDZO \
-            "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
-          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
+          tar -czf "K-PDF-${{ steps.version.outputs.version }}-macos.tar.gz" main.dist/
+          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.tar.gz"
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
@@ -172,7 +150,6 @@ jobs:
           name: ${{ matrix.artifact }}
           path: |
             build/K-PDF-*.tar.gz
-            build/K-PDF-*.dmg
             build/K-PDF-*.zip
           retention-days: 7
 
@@ -200,7 +177,7 @@ jobs:
           generate_release_notes: true
           files: |
             artifacts/K-PDF-linux/K-PDF-*.tar.gz
-            artifacts/K-PDF-macos/K-PDF-*.dmg
+            artifacts/K-PDF-macos/K-PDF-*.tar.gz
             artifacts/K-PDF-windows/K-PDF-*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

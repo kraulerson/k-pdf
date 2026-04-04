@@ -171,7 +171,6 @@ jobs:
           # Platform-specific flags
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             NUITKA_ARGS+=(
-              --macos-create-app-bundle
               --macos-app-icon=k_pdf/resources/icons/k-pdf-icon.icns
             )
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
@@ -197,11 +196,7 @@ jobs:
           PYMUPDF_DIR=$(uv run python -c "import pymupdf, pathlib; print(pathlib.Path(pymupdf.__file__).parent)")
           FITZ_DIR=$(uv run python -c "import fitz, pathlib; print(pathlib.Path(fitz.__file__).parent)")
 
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            DIST=build/main.app/Contents/MacOS
-          else
-            DIST=build/main.dist
-          fi
+          DIST=build/main.dist
 
           # Remove any partial data-only dirs Nuitka created, then copy full packages
           rm -rf "$DIST/pymupdf" "$DIST/fitz"
@@ -209,15 +204,6 @@ jobs:
           cp -R "$FITZ_DIR" "$DIST/fitz"
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
-
-      - name: Sign macOS app bundle
-        if: runner.os == 'macOS'
-        run: |
-          cd build/main.app/Contents
-          find MacOS -type f \( -name '*.so' -o -name '*.dylib' \) -exec codesign --force --sign - {} \;
-          find MacOS -name 'main' -type f -exec codesign --force --sign - {} \;
-          cd ../../..
-          xattr -cr build/main.app
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
