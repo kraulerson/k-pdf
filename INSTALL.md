@@ -1,36 +1,17 @@
 # Installing K-PDF
 
-Download the latest release for your platform from
-[GitHub Releases](https://github.com/KarlRaulworx/k-pdf/releases).
-
 ## macOS
-
-macOS quarantines all files downloaded from the internet. Because K-PDF is
-unsigned, you must clear the quarantine attribute before running it.
-
-```bash
-tar xzf K-PDF-*-macos.tar.gz
-xattr -cr main.dist
-./main.dist/main
-```
+1. Download `K-PDF-x.x.x-macos.tar.gz` from the [Releases](../../releases) page
+2. Extract: `tar xzf K-PDF-*-macos.tar.gz`
+3. If macOS blocks the app, remove quarantine: `xattr -cr main.dist/`
+4. Run: `./main.dist/main`
 
 ## Windows
-
-```
-# Extract the zip, then double-click main.exe
-```
+1. Download `K-PDF-x.x.x-windows.zip` from the [Releases](../../releases) page
+2. Extract the zip file
+3. Double-click `main.exe`
 
 ## Linux
-
-```bash
-tar xzf K-PDF-*-linux.tar.gz
-chmod +x main.dist/main
-./main.dist/main
-```
-
-## Why not a .app or .dmg on macOS?
-
-Unsigned `.app` bundles downloaded from the internet are blocked by macOS
-Gatekeeper with a "damaged and can't be opened" error. Distributing as a
-`.tar.gz` with a standalone binary avoids this issue entirely. Users only need
-to run `xattr -cr` once after extracting.
+1. Download `K-PDF-x.x.x-linux.tar.gz` from the [Releases](../../releases) page
+2. Extract: `tar xzf K-PDF-*-linux.tar.gz`
+3. Run: `./main.dist/main`

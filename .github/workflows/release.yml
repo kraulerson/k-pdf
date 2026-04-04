@@ -86,11 +86,7 @@ jobs:
           )
 
           # Platform-specific flags
-          if [[ "$RUNNER_OS" == "macOS" ]]; then
-            NUITKA_ARGS+=(
-              --macos-app-icon=k_pdf/resources/icons/k-pdf-icon.icns
-            )
-          elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          if [[ "$RUNNER_OS" == "Windows" ]]; then
             NUITKA_ARGS+=(
               --windows-console-mode=disable
               --windows-icon-from-ico=k_pdf/resources/icons/k-pdf-icon.ico

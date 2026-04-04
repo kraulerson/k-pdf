@@ -8,7 +8,6 @@ Uses plain time.perf_counter() timing with upper-bound assertions.
 
 from __future__ import annotations
 
-import os
 import sys
 import time
 
@@ -47,7 +46,7 @@ def _rss_mb() -> float:
         return 0.0
     usage = resource.getrusage(resource.RUSAGE_SELF)  # type: ignore[name-defined]
     # macOS reports in bytes, Linux in kilobytes
-    if os.uname().sysname == "Darwin":
+    if sys.platform == "darwin":
         return usage.ru_maxrss / (1024 * 1024)
     return usage.ru_maxrss / 1024
 
