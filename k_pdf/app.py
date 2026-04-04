@@ -314,6 +314,7 @@ class KPdfApp:
         if count == 0:
             self._window.show_welcome()
             self._window.set_print_enabled(False)
+            self._window.set_tools_enabled(False)
         else:
             self._window.show_tabs()
 
@@ -483,6 +484,7 @@ class KPdfApp:
 
     def _on_document_ready_annotation(self, session_id: str, model: object) -> None:
         """Wire viewport annotation signals for a newly loaded document tab."""
+        self._window.set_tools_enabled(True)
         viewport = self._tab_manager.get_active_viewport()
         presenter = self._tab_manager.get_active_presenter()
         if viewport is not None:

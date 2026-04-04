@@ -402,6 +402,7 @@ class MainWindow(QMainWindow):
         self._text_select_action = QAction("&Text Selection Mode", self)
         self._text_select_action.setShortcut(QKeySequence("Ctrl+T"))
         self._text_select_action.setCheckable(True)
+        self._text_select_action.setEnabled(False)
         self._text_select_action.setToolTip("Toggle text selection for annotations")
         self._text_select_action.toggled.connect(self.text_selection_toggled.emit)
         self._tool_action_group.addAction(self._text_select_action)
@@ -409,6 +410,7 @@ class MainWindow(QMainWindow):
 
         self._sticky_note_action = QAction("Sticky &Note", self)
         self._sticky_note_action.setCheckable(True)
+        self._sticky_note_action.setEnabled(False)
         self._sticky_note_action.setToolTip("Click to place a sticky note")
         self._sticky_note_action.toggled.connect(self.sticky_note_toggled.emit)
         self._tool_action_group.addAction(self._sticky_note_action)
@@ -416,6 +418,7 @@ class MainWindow(QMainWindow):
 
         self._text_box_action = QAction("Text &Box", self)
         self._text_box_action.setCheckable(True)
+        self._text_box_action.setEnabled(False)
         self._text_box_action.setToolTip("Drag to draw a text box")
         self._text_box_action.toggled.connect(self.text_box_toggled.emit)
         self._tool_action_group.addAction(self._text_box_action)
@@ -514,6 +517,16 @@ class MainWindow(QMainWindow):
         self._undo_action.setText(undo_text if undo_text else "&Undo")
         self._redo_action.setEnabled(can_redo)
         self._redo_action.setText(redo_text if redo_text else "&Redo")
+
+    def set_tools_enabled(self, enabled: bool) -> None:
+        """Enable or disable annotation tool actions in the Tools menu.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._text_select_action.setEnabled(enabled)
+        self._sticky_note_action.setEnabled(enabled)
+        self._text_box_action.setEnabled(enabled)
 
     def set_theme_mode(self, mode: object) -> None:
         """Update the UI to reflect the current theme mode.
