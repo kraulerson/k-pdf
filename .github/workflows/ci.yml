@@ -138,6 +138,8 @@ jobs:
             --product-name=K-PDF
             --product-version=0.1.0
             --file-description="K-PDF - Free PDF Reader and Editor"
+            # Include resource files (QSS themes, icons)
+            --include-data-dir=k_pdf/resources=k_pdf/resources
             # Exclude pymupdf/fitz from Nuitka C compilation entirely.
             # PyMuPDF's mupdf.py (2.5 MB SWIG binding) generates a C file
             # that takes 30+ min to compile and uses 2+ GB RAM, causing OOM
