@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import os
 import sys
 
-from PySide6.QtWidgets import QApplication
+# For macOS .app bundles: pymupdf/fitz live in Contents/Resources/python-packages
+# (kept out of Contents/MacOS/ because codesign rejects .py files there)
+_resources_pkg = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(sys.executable))),
+    "Resources",
+    "python-packages",
+)
+if os.path.isdir(_resources_pkg) and _resources_pkg not in sys.path:
+    sys.path.insert(0, _resources_pkg)
 
-from k_pdf.app import KPdfApp
-from k_pdf.core.logging import setup_logging
+from PySide6.QtWidgets import QApplication  # noqa: E402
+
+from k_pdf.app import KPdfApp  # noqa: E402
+from k_pdf.core.logging import setup_logging  # noqa: E402
 
 
 def main() -> int:

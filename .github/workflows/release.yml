@@ -125,22 +125,10 @@ jobs:
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
 
-          # On macOS, create a compiled .pyc sitecustomize that adds Resources to sys.path
-          # (.py files in MacOS/ cause codesign to fail, but .pyc files are fine)
+          # On macOS, remove stray .py/.pyc files from MacOS/ (codesign rejects them)
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            MACOS_DIR=build/main.app/Contents/MacOS
-            uv run python -c "
-          import py_compile, os, sys
-          src = os.path.join('$MACOS_DIR', '_sitecustomize.py')
-          with open(src, 'w') as f:
-              f.write('import sys, os\\n')
-              f.write('pkg = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(sys.executable))), \"Resources\", \"python-packages\")\\n')
-              f.write('if pkg not in sys.path: sys.path.insert(0, pkg)\\n')
-          py_compile.compile(src, os.path.join('$MACOS_DIR', 'sitecustomize.pyc'))
-          os.remove(src)
-          "
-            # Also remove any .py files that Nuitka left in MacOS/
-            find "$MACOS_DIR" -maxdepth 1 -name '*.py' -delete
+            find build/main.app/Contents/MacOS -maxdepth 1 -name '*.py' -delete
+            find build/main.app/Contents/MacOS -maxdepth 1 -name '*.pyc' -delete
           fi
 
       # --- macOS: Sign, notarize, and create DMG ---
