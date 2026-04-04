@@ -78,6 +78,7 @@ class NoteEditor(QWidget):
         self._target_page = page_index
         self._target_annot = None
         self._text_edit.clear()
+        self._text_edit.document().setModified(False)
         self.move(x, y)
         self.show()
         self._text_edit.setFocus()
@@ -105,6 +106,7 @@ class NoteEditor(QWidget):
         self._target_page = page_index
         self._target_annot = annot
         self._text_edit.setPlainText(content)
+        self._text_edit.document().setModified(False)
         self.move(x, y)
         self.show()
         self._text_edit.setFocus()
@@ -127,7 +129,10 @@ class NoteEditor(QWidget):
             and self.isVisible()
             and not self._saving
         ):
-            self._on_save()
+            if not self._text_edit.document().isModified():
+                self._on_cancel()
+            else:
+                self._on_save()
             return True
         return super().event(ev)
 
