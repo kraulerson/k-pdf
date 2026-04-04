@@ -9,6 +9,7 @@ from PySide6.QtGui import QImage, QPixmap
 from PySide6.QtWidgets import QApplication
 
 from k_pdf.app import KPdfApp
+from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.document_model import PageInfo
 from k_pdf.core.zoom_model import FitMode
 from k_pdf.presenters.tab_manager import TabManager
@@ -247,6 +248,20 @@ class TestPdfViewport:
         spy.assert_called_once()
         step, _pos = spy.call_args[0]
         assert step > 0  # scroll up = zoom in
+
+    def test_viewport_does_not_accept_drops(self) -> None:
+        """PdfViewport must reject drops so they propagate to MainWindow."""
+        viewport = PdfViewport()
+        assert viewport.acceptDrops() is False
+        assert viewport.viewport().acceptDrops() is False
+
+    def test_viewport_drops_disabled_after_tool_mode_change(self) -> None:
+        """setDragMode(ScrollHandDrag) must not re-enable drop acceptance."""
+        viewport = PdfViewport()
+        viewport.set_tool_mode(ToolMode.TEXT_SELECT)
+        viewport.set_tool_mode(ToolMode.NONE)  # restores ScrollHandDrag
+        assert viewport.acceptDrops() is False
+        assert viewport.viewport().acceptDrops() is False
 
 
 class TestMainWindow:

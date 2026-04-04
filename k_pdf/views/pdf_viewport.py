@@ -77,6 +77,12 @@ class PdfViewport(QGraphicsView):
         self.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignHCenter)
         self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
 
+        # Disable drop acceptance on both the QGraphicsView and its
+        # internal viewport widget so file drag-drop events propagate
+        # up to MainWindow instead of being swallowed by QGraphicsView.
+        self.setAcceptDrops(False)
+        self.viewport().setAcceptDrops(False)
+
         self._state = ViewportState.EMPTY
         self._pages: list[PageInfo] = []
         self._page_items: dict[int, QGraphicsPixmapItem | QGraphicsRectItem] = {}
@@ -415,6 +421,12 @@ class PdfViewport(QGraphicsView):
         elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX):
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.CrossCursor)
+
+        # setDragMode(ScrollHandDrag) can re-enable acceptDrops on
+        # the internal viewport widget; keep drops disabled so file
+        # drag-drop propagates to MainWindow.
+        self.setAcceptDrops(False)
+        self.viewport().setAcceptDrops(False)
 
         self._drag_start = None
         self._textbox_drag_start = None
