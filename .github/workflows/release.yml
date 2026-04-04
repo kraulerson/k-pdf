@@ -193,6 +193,7 @@ jobs:
 
       - name: Notarize macOS app
         if: runner.os == 'macOS'
+        timeout-minutes: 45
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
@@ -200,31 +201,34 @@ jobs:
         run: |
           # Create a zip for notarization submission
           ditto -c -k --keepParent build/main.app build/main.zip
+          echo "Zip size: $(du -h build/main.zip | cut -f1)"
 
-          # Submit for notarization
-          xcrun notarytool submit build/main.zip \
+          # Submit without --wait, then poll separately
+          SUBMIT_OUT=$(xcrun notarytool submit build/main.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" 2>&1)
+          echo "$SUBMIT_OUT"
+          SUBMISSION_ID=$(echo "$SUBMIT_OUT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "Submission ID: $SUBMISSION_ID"
+
+          # Poll for completion with longer patience
+          echo "Waiting for Apple to process notarization..."
+          xcrun notarytool wait "$SUBMISSION_ID" \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 1800
+            --timeout 2400
 
-          # If we get here, notarytool exited 0 = Accepted
-          # (notarytool exits non-zero on Invalid/rejection)
+          # Check final status
+          xcrun notarytool info "$SUBMISSION_ID" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID"
 
           # Staple the notarization ticket
-          for i in 1 2 3 4 5; do
-            echo "Staple attempt $i..."
-            if xcrun stapler staple build/main.app; then
-              echo "Stapling successful."
-              break
-            fi
-            if [ "$i" -eq 5 ]; then
-              echo "Stapling failed after 5 attempts. Proceeding without staple."
-            else
-              echo "Waiting 30s for Apple CDN propagation..."
-              sleep 30
-            fi
-          done
+          sleep 10
+          xcrun stapler staple build/main.app || echo "Stapling failed — app is still notarized (online check)"
 
           rm build/main.zip
 
