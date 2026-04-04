@@ -445,6 +445,45 @@ class PdfViewport(QGraphicsView):
         """
         self._doc_handle = doc_handle
 
+    def show_selection_overlay(
+        self,
+        page_index: int,
+        word_rects: list[tuple[float, float, float, float]],
+    ) -> None:
+        """Draw selection overlays for a list of word rects on a page.
+
+        Used by select-all to show visual feedback. Clears any existing
+        selection overlay before drawing.
+
+        Args:
+            page_index: 0-based page index.
+            word_rects: List of (x0, y0, x1, y1) in PDF coordinates.
+        """
+        self.clear_selection_overlay()
+        if page_index < 0 or page_index >= len(self._page_y_offsets):
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+        y_base = self._page_y_offsets[page_index]
+
+        pen = QPen(QColor(0, 100, 200, 100))
+        pen.setWidthF(0.5)
+        brush = QBrush(QColor(51, 153, 255, 80))
+
+        for wx0, wy0, wx1, wy1 in word_rects:
+            sx = wx0 * zoom
+            sy = wy0 * zoom + y_base
+            sw = (wx1 - wx0) * zoom
+            sh = (wy1 - wy0) * zoom
+            rect_item = self._scene.addRect(QRectF(0, 0, sw, sh), pen=pen, brush=brush)
+            rect_item.setPos(sx, sy)
+            rect_item.setZValue(15)
+            self._selection_overlays.append(rect_item)
+
     def clear_selection_overlay(self) -> None:
         """Remove all text selection overlay items from the scene."""
         for item in self._selection_overlays:
@@ -452,11 +491,17 @@ class PdfViewport(QGraphicsView):
         self._selection_overlays.clear()
 
     def _page_at_scene_pos(self, scene_pos: QPointF) -> int:
-        """Return the page index at the given scene position, or -1."""
+        """Return the page index at the given scene position, or -1.
+
+        Uses the rendered page item bounding rect so the hit area
+        matches the actual (zoomed) page dimensions on screen.
+        """
         if not self._pages or not self._page_y_offsets:
             return -1
         for i, y_off in enumerate(self._page_y_offsets):
-            page_bottom = y_off + self._pages[i].height
+            item = self._page_items.get(i)
+            page_h = item.boundingRect().height() if item is not None else self._pages[i].height
+            page_bottom = y_off + page_h
             if y_off <= scene_pos.y() <= page_bottom:
                 return i
         return -1
