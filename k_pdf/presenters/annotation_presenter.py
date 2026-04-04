@@ -132,9 +132,10 @@ class AnnotationPresenter(QObject):
         self._selected_rects = rects
         self.selection_changed.emit(True)
 
-        # Show toolbar near the selection
+        # Draw selection overlays and show toolbar near the selection
         viewport = self._tab_manager.get_active_viewport()
         if viewport is not None:
+            viewport.show_selection_overlay(page_index, rects)
             global_pos = viewport.mapToGlobal(viewport.rect().center())
             self._toolbar.show_near(global_pos.x(), global_pos.y() - 60)
 
