@@ -52,6 +52,9 @@ class ThemeManager(QObject):
         self._light_qss = self._load_qss("light.qss")
         self._dark_qss = self._load_qss("dark.qss")
 
+        # Apply the light stylesheet on startup so the UI starts in light mode
+        self._app.setStyleSheet(self._light_qss)
+
     @property
     def mode(self) -> ThemeMode:
         """Return the current theme mode."""
