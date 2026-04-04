@@ -201,33 +201,15 @@ jobs:
           # Create a zip for notarization submission
           ditto -c -k --keepParent build/main.app build/main.zip
 
-          # Submit for notarization and capture the submission ID
-          SUBMIT_OUTPUT=$(xcrun notarytool submit build/main.zip \
+          # Submit for notarization
+          xcrun notarytool submit build/main.zip \
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" \
-            --wait --timeout 600 2>&1) || true
-          echo "$SUBMIT_OUTPUT"
+            --wait --timeout 600
 
-          # Extract submission ID and check status
-          SUBMISSION_ID=$(echo "$SUBMIT_OUTPUT" | grep "id:" | head -1 | awk '{print $2}')
-          STATUS=$(echo "$SUBMIT_OUTPUT" | grep "status:" | head -1 | awk '{print $2}')
-
-          # Always fetch the notarization log for debugging
-          if [ -n "$SUBMISSION_ID" ]; then
-            echo "=== Notarization Log ==="
-            xcrun notarytool log "$SUBMISSION_ID" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" 2>&1 || true
-            echo "=== End Log ==="
-          fi
-
-          # Fail if notarization was rejected
-          if [ "$STATUS" = "Invalid" ]; then
-            echo "::error::Notarization REJECTED. Check the log above for details."
-            exit 1
-          fi
+          # If we get here, notarytool exited 0 = Accepted
+          # (notarytool exits non-zero on Invalid/rejection)
 
           # Staple the notarization ticket
           for i in 1 2 3 4 5; do
