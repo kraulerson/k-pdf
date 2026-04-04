@@ -55,7 +55,7 @@ class TestZoomToolBarSlider:
         toolbar = ZoomToolBar()
         spy = MagicMock()
         toolbar.zoom_changed.connect(spy)
-        # Simulate slider move (slider range 10-3200 representing 10%-3200%)
+        # Simulate slider move (slider range 10-300 representing 10%-300%)
         toolbar._slider.setValue(200)
         spy.assert_called()
         zoom_val = spy.call_args[0][0]
@@ -102,7 +102,7 @@ class TestZoomToolBarPercentageInput:
         toolbar._percent_input.setText("5000")
         toolbar._percent_input.editingFinished.emit()
         spy.assert_called()
-        assert spy.call_args[0][0] == 32.0  # 3200% max
+        assert spy.call_args[0][0] == 3.0  # 300% max
 
 
 class TestZoomToolBarPresetDropdown:

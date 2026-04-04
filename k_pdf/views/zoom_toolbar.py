@@ -21,9 +21,9 @@ from k_pdf.core.zoom_model import FitMode
 
 logger = logging.getLogger("k_pdf.views.zoom_toolbar")
 
-# Slider range: 10 to 3200 (representing 10% to 3200%)
+# Slider range: 10 to 300 (representing 10% to 300%)
 _SLIDER_MIN = 10
-_SLIDER_MAX = 3200
+_SLIDER_MAX = 300
 
 # Zoom step for +/- buttons and Ctrl+scroll
 _ZOOM_STEP = 0.1
@@ -92,7 +92,7 @@ class ZoomToolBar(QToolBar):
         self._percent_input = QLineEdit("100%")
         self._percent_input.setFixedWidth(60)
         self._percent_input.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._percent_input.setToolTip("Zoom percentage (10%-3200%)")
+        self._percent_input.setToolTip("Zoom percentage (10%-300%)")
         self._percent_input.editingFinished.connect(self._on_percent_edited)
         self.addWidget(self._percent_input)
 
@@ -186,7 +186,7 @@ class ZoomToolBar(QToolBar):
 
         zoom = percent / 100.0
         # Clamp to valid range
-        zoom = max(0.1, min(32.0, zoom))
+        zoom = max(0.1, min(3.0, zoom))
         self._current_zoom = zoom
 
         self._updating = True
@@ -215,7 +215,7 @@ class ZoomToolBar(QToolBar):
 
     def _on_zoom_in(self) -> None:
         """Zoom in by one step."""
-        new_zoom = min(32.0, self._current_zoom + _ZOOM_STEP)
+        new_zoom = min(3.0, self._current_zoom + _ZOOM_STEP)
         self._current_zoom = new_zoom
         self._updating = True
         self._slider.setValue(int(new_zoom * 100))

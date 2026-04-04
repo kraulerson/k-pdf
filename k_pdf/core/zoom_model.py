@@ -27,14 +27,14 @@ class ZoomState:
         rotation: Current rotation in degrees (0, 90, 180, 270).
         fit_mode: Active fit mode for automatic zoom.
         min_zoom: Minimum allowed zoom (10%).
-        max_zoom: Maximum allowed zoom (3200%).
+        max_zoom: Maximum allowed zoom (300%).
     """
 
     zoom: float = 1.0
     rotation: int = 0
     fit_mode: FitMode = field(default=FitMode.NONE)
     min_zoom: float = 0.1
-    max_zoom: float = 32.0
+    max_zoom: float = 3.0
 
     def clamp_zoom(self, value: float) -> float:
         """Clamp a zoom value to [min_zoom, max_zoom].

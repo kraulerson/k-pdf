@@ -79,7 +79,7 @@ class TestDocumentPresenterZoom:
     def test_set_zoom_clamps_above_max(self) -> None:
         presenter = _make_presenter_with_model()
         presenter.set_zoom(50.0)
-        assert presenter.zoom == 32.0
+        assert presenter.zoom == 3.0
         presenter.shutdown()
 
     def test_set_zoom_emits_signal(self) -> None:

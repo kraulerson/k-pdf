@@ -22,7 +22,7 @@ class TestZoomStateConstruction:
         assert state.rotation == 0
         assert state.fit_mode is FitMode.NONE
         assert state.min_zoom == 0.1
-        assert state.max_zoom == 32.0
+        assert state.max_zoom == 3.0
 
     def test_custom_values(self) -> None:
         state = ZoomState(zoom=2.0, rotation=90, fit_mode=FitMode.PAGE)
@@ -44,7 +44,7 @@ class TestClampZoom:
     def test_within_range_unchanged(self) -> None:
         state = ZoomState()
         assert state.clamp_zoom(1.0) == 1.0
-        assert state.clamp_zoom(5.0) == 5.0
+        assert state.clamp_zoom(2.5) == 2.5
 
     def test_below_min_clamped(self) -> None:
         state = ZoomState()
@@ -54,13 +54,13 @@ class TestClampZoom:
 
     def test_above_max_clamped(self) -> None:
         state = ZoomState()
-        assert state.clamp_zoom(50.0) == 32.0
-        assert state.clamp_zoom(100.0) == 32.0
+        assert state.clamp_zoom(50.0) == 3.0
+        assert state.clamp_zoom(100.0) == 3.0
 
     def test_at_boundaries(self) -> None:
         state = ZoomState()
         assert state.clamp_zoom(0.1) == 0.1
-        assert state.clamp_zoom(32.0) == 32.0
+        assert state.clamp_zoom(3.0) == 3.0
 
 
 class TestNormalizeRotation:
