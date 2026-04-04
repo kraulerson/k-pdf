@@ -112,12 +112,14 @@ class MainWindow(QMainWindow):
         self._tab_widget.setMovable(True)
         self._tab_widget.setDocumentMode(True)
         self._tab_widget.setElideMode(Qt.TextElideMode.ElideRight)
+        self._tab_widget.setAcceptDrops(False)
 
         # Stacked widget: page 0 = welcome, page 1 = tabs
         self._stacked = QStackedWidget(self)
         self._stacked.addWidget(self._welcome)
         self._stacked.addWidget(self._tab_widget)
         self._stacked.setCurrentIndex(0)
+        self._stacked.setAcceptDrops(False)
 
         # Search bar (above viewport area)
         self._search_bar = SearchBar(self)
