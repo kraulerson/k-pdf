@@ -656,6 +656,7 @@ class TestMainWindowToolsMenu:
         from k_pdf.views.main_window import MainWindow
 
         window = MainWindow()
+        window.set_tools_enabled(True)  # Tools start disabled until doc loads
         with qtbot.waitSignal(window.text_selection_toggled, timeout=1000):  # type: ignore[union-attr]
             actions = window.tools_menu.actions()
             sel_action = next(a for a in actions if "Text Selection" in a.text())
