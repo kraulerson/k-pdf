@@ -150,6 +150,35 @@ class AnnotationEngine:
         page = doc_handle[page_index]
         return list(page.annots())
 
+    def hit_test_annotation(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        pdf_x: float,
+        pdf_y: float,
+    ) -> Any | None:
+        """Return the topmost annotation at a PDF coordinate, or None.
+
+        Keeps the page object alive during the entire operation to prevent
+        pymupdf ``ReferenceError`` from stale weak-reference annotations.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            pdf_x: X coordinate in PDF page space.
+            pdf_y: Y coordinate in PDF page space.
+
+        Returns:
+            The topmost pymupdf.Annot at the point, or None.
+        """
+        page = doc_handle[page_index]
+        annots = list(page.annots())
+        for annot in reversed(annots):
+            rect = annot.rect
+            if rect.x0 <= pdf_x <= rect.x1 and rect.y0 <= pdf_y <= rect.y1:
+                return annot
+        return None
+
     def add_sticky_note(
         self,
         doc_handle: Any,
