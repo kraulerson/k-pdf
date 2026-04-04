@@ -237,6 +237,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           cd build
+          sleep 5  # ensure notarize zip handle is released
           hdiutil create -volname "K-PDF" \
             -srcfolder main.app \
             -ov -format UDZO \
