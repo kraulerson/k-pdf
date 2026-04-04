@@ -136,7 +136,7 @@ class PdfViewport(QGraphicsView):
         text = self._scene.addSimpleText(message)
         text.setPos(50, 50)
 
-    def set_document(self, pages: list[PageInfo], zoom: float = 1.0) -> None:
+    def set_document(self, pages: list[PageInfo], zoom: float = 1.0, rotation: int = 0) -> None:
         """Set up the viewport for a new document.
 
         Creates placeholder rectangles for all pages and calculates
@@ -146,6 +146,7 @@ class PdfViewport(QGraphicsView):
         Args:
             pages: List of PageInfo for each page in the document.
             zoom: Current zoom factor.
+            rotation: Current rotation in degrees (0, 90, 180, 270).
         """
         self._state = ViewportState.SUCCESS
         self._scene.clear()
@@ -155,8 +156,12 @@ class PdfViewport(QGraphicsView):
 
         y_offset = 0.0
         for page_info in pages:
-            w = page_info.width * zoom
-            h = page_info.height * zoom
+            if rotation in (90, 270):
+                w = page_info.height * zoom
+                h = page_info.width * zoom
+            else:
+                w = page_info.width * zoom
+                h = page_info.height * zoom
 
             # Create a placeholder rectangle using palette color
             rect_item = self._scene.addRect(
@@ -542,7 +547,12 @@ class PdfViewport(QGraphicsView):
 
     @override
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
-        """Handle double-click — open editor for existing annotation."""
+        """Handle double-click — open editor for existing annotation.
+
+        When a tool mode is active (STICKY_NOTE, TEXT_BOX, TEXT_SELECT) the
+        event is always consumed so the default QGraphicsView double-click
+        handler never fires and cannot cause crashes.
+        """
         if event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             annot = self._hit_test_annotation(scene_pos)
@@ -552,6 +562,11 @@ class PdfViewport(QGraphicsView):
                     self.annotation_double_clicked.emit(page_index, annot)
                     event.accept()
                     return
+            # When a tool mode is active, consume the double-click to prevent
+            # the default QGraphicsView handler from causing unexpected behavior.
+            if self._tool_mode is not ToolMode.NONE:
+                event.accept()
+                return
         super().mouseDoubleClickEvent(event)
 
     def _handle_sticky_note_click(self, event: QMouseEvent) -> None:
@@ -630,6 +645,8 @@ class PdfViewport(QGraphicsView):
         """Hit-test annotations at the given scene position.
 
         Returns the topmost sticky note or text box annotation at the point.
+        Delegates to AnnotationEngine.hit_test_annotation() which keeps the
+        page object alive to prevent pymupdf stale-reference crashes.
         """
         if self._annotation_engine is None or self._doc_handle is None:
             return None
@@ -646,13 +663,9 @@ class PdfViewport(QGraphicsView):
 
         pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
 
-        annots = self._annotation_engine.get_annotations(self._doc_handle, page_index)  # type: ignore[attr-defined]
-
-        for annot in reversed(annots):
-            rect = annot.rect
-            if rect.x0 <= pdf_x <= rect.x1 and rect.y0 <= pdf_y <= rect.y1:
-                return annot  # type: ignore[no-any-return]
-        return None
+        return self._annotation_engine.hit_test_annotation(  # type: ignore[attr-defined]
+            self._doc_handle, page_index, pdf_x, pdf_y
+        )
 
     def _update_selection_overlay(self, start: QPointF, current: QPointF) -> None:
         """Draw selection overlay rectangles over words in the drag range."""
@@ -750,7 +763,11 @@ class PdfViewport(QGraphicsView):
         return (page_index, selected_rects)
 
     def _show_annotation_context_menu(self, event: QMouseEvent) -> None:
-        """Show a context menu for deleting annotations on right-click."""
+        """Show a context menu for deleting annotations on right-click.
+
+        Delegates hit-testing to AnnotationEngine.hit_test_annotation() to
+        keep the page object alive and prevent stale-reference crashes.
+        """
         if self._annotation_engine is None or self._doc_handle is None:
             return
 
@@ -767,15 +784,9 @@ class PdfViewport(QGraphicsView):
 
         pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
 
-        annots = self._annotation_engine.get_annotations(self._doc_handle, page_index)  # type: ignore[attr-defined]
-
-        # Find the topmost annotation at click point
-        hit_annot = None
-        for annot in reversed(annots):
-            rect = annot.rect
-            if rect.x0 <= pdf_x <= rect.x1 and rect.y0 <= pdf_y <= rect.y1:
-                hit_annot = annot
-                break
+        hit_annot = self._annotation_engine.hit_test_annotation(  # type: ignore[attr-defined]
+            self._doc_handle, page_index, pdf_x, pdf_y
+        )
 
         if hit_annot is None:
             return
