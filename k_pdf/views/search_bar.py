@@ -8,9 +8,10 @@ Activated by Ctrl+F from the main window.
 from __future__ import annotations
 
 import logging
+from typing import override
 
-from PySide6.QtCore import QTimer, Signal
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QKeyEvent, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -95,12 +96,33 @@ class SearchBar(QWidget):
         # Connect text changes to debounced search
         self._search_input.textChanged.connect(self._on_text_changed)
 
-        # Enter -> next, Shift+Enter -> previous
-        self._search_input.returnPressed.connect(self.next_requested.emit)
+        # Enter -> next, Shift+Enter -> previous (handled via event filter)
+        self._search_input.installEventFilter(self)
 
         # Escape closes the search bar
         escape_shortcut = QShortcut(QKeySequence("Escape"), self)
         escape_shortcut.activated.connect(self.closed.emit)
+
+    @override
+    def eventFilter(self, obj: QObject, event: QEvent) -> bool:
+        """Intercept Return/Shift+Return on the search input.
+
+        Args:
+            obj: The watched object.
+            event: The event.
+
+        Returns:
+            True if the event was handled, False otherwise.
+        """
+        if obj is self._search_input and event.type() == QEvent.Type.KeyPress:
+            key_event: QKeyEvent = event  # type: ignore[assignment]
+            if key_event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+                if key_event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                    self.previous_requested.emit()
+                else:
+                    self.next_requested.emit()
+                return True
+        return super().eventFilter(obj, event)
 
     def set_match_count(self, current: int, total: int) -> None:
         """Update the match counter label.
