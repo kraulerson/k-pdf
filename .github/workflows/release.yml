@@ -175,16 +175,16 @@ jobs:
           IDENTITY="Developer ID Application: Karl Raulerson (M6M33BX75L)"
           APP=build/main.app
 
-          # Sign all Mach-O binaries inside-out
-          # First: all .so and .dylib files
-          find "$APP" -type f \( -name '*.so' -o -name '*.dylib' \) -exec \
-            codesign --force --options runtime --timestamp --sign "$IDENTITY" {} \;
+          # Sign ALL Mach-O binaries inside-out
+          # Find every Mach-O file (regardless of extension) and sign it
+          find "$APP" -type f -exec sh -c '
+            file "$1" | grep -q "Mach-O" && \
+            codesign --force --options runtime --timestamp --sign "$2" "$1" 2>/dev/null
+          ' _ {} "$IDENTITY" \;
 
-          # Then: the main executable
+          # Re-sign the main executable and bundle last (inside-out order)
           codesign --force --options runtime --timestamp --sign "$IDENTITY" \
             "$APP/Contents/MacOS/main"
-
-          # Finally: the bundle itself
           codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 
           echo "Signing complete. Verifying..."
