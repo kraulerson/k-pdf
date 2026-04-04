@@ -111,7 +111,10 @@ jobs:
           FITZ_DIR=$(uv run python -c "import fitz, pathlib; print(pathlib.Path(fitz.__file__).parent)")
 
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            DIST=build/main.app/Contents/MacOS
+            # On macOS, put Python packages in Resources (not MacOS)
+            # to avoid codesign rejecting .py files in the code directory
+            DIST=build/main.app/Contents/Resources/python-packages
+            mkdir -p "$DIST"
           else
             DIST=build/main.dist
           fi
@@ -121,6 +124,24 @@ jobs:
           cp -R "$FITZ_DIR" "$DIST/fitz"
 
           echo "PyMuPDF package copied to $DIST/pymupdf/ ($(du -sh "$DIST/pymupdf" | cut -f1))"
+
+          # On macOS, create a compiled .pyc sitecustomize that adds Resources to sys.path
+          # (.py files in MacOS/ cause codesign to fail, but .pyc files are fine)
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            MACOS_DIR=build/main.app/Contents/MacOS
+            uv run python -c "
+          import py_compile, os, sys
+          src = os.path.join('$MACOS_DIR', '_sitecustomize.py')
+          with open(src, 'w') as f:
+              f.write('import sys, os\\n')
+              f.write('pkg = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(sys.executable))), \"Resources\", \"python-packages\")\\n')
+              f.write('if pkg not in sys.path: sys.path.insert(0, pkg)\\n')
+          py_compile.compile(src, os.path.join('$MACOS_DIR', 'sitecustomize.pyc'))
+          os.remove(src)
+          "
+            # Also remove any .py files that Nuitka left in MacOS/
+            find "$MACOS_DIR" -maxdepth 1 -name '*.py' -delete
+          fi
 
       # --- macOS: Sign, notarize, and create DMG ---
       - name: Import signing certificate (macOS)
