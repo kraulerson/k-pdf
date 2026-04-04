@@ -9,6 +9,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
@@ -36,6 +37,9 @@ from k_pdf.services.print_service import PrintService
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
+
+if TYPE_CHECKING:
+    from k_pdf.views.pdf_viewport import PdfViewport
 
 logger = logging.getLogger("k_pdf.app")
 
@@ -360,6 +364,30 @@ class KPdfApp:
 
     # --- Zoom/rotation handlers ---
 
+    @staticmethod
+    def _effective_viewport_size(
+        viewport: PdfViewport,
+    ) -> tuple[float, float]:
+        """Return usable viewport size, subtracting scrollbar space.
+
+        QGraphicsView.viewport() reports its full size even when a
+        scrollbar is not yet visible but will appear after zoom changes.
+        We unconditionally subtract scrollbar dimensions so Fit Page and
+        Fit Width never produce a zoom that causes content to overflow.
+
+        Args:
+            viewport: The PdfViewport (QGraphicsView subclass).
+
+        Returns:
+            (width, height) in pixels with scrollbar space subtracted.
+        """
+        vp = viewport.viewport()
+        sb_w = viewport.verticalScrollBar().sizeHint().width()
+        sb_h = viewport.horizontalScrollBar().sizeHint().height()
+        w = max(1.0, float(vp.width()) - sb_w)
+        h = max(1.0, float(vp.height()) - sb_h)
+        return w, h
+
     def _on_toolbar_zoom_changed(self, zoom: float) -> None:
         """Route toolbar zoom change to active presenter."""
         presenter = self._tab_manager.get_active_presenter()
@@ -371,16 +399,16 @@ class KPdfApp:
         presenter = self._tab_manager.get_active_presenter()
         viewport = self._tab_manager.get_active_viewport()
         if presenter is not None and viewport is not None:
-            vp = viewport.viewport()
-            presenter.set_fit_mode(FitMode.PAGE, float(vp.width()), float(vp.height()))
+            w, h = self._effective_viewport_size(viewport)
+            presenter.set_fit_mode(FitMode.PAGE, w, h)
 
     def _on_fit_width_requested(self) -> None:
         """Route Fit Width request to active presenter."""
         presenter = self._tab_manager.get_active_presenter()
         viewport = self._tab_manager.get_active_viewport()
         if presenter is not None and viewport is not None:
-            vp = viewport.viewport()
-            presenter.set_fit_mode(FitMode.WIDTH, float(vp.width()), float(vp.height()))
+            w, h = self._effective_viewport_size(viewport)
+            presenter.set_fit_mode(FitMode.WIDTH, w, h)
 
     def _on_rotate_cw(self) -> None:
         """Route rotate clockwise to active presenter."""
@@ -412,11 +440,17 @@ class KPdfApp:
         if presenter is not None:
             presenter.set_zoom(1.0)
 
-    def _on_viewport_resized(self, width: float, height: float) -> None:
+    def _on_viewport_resized(self, _width: float, _height: float) -> None:
         """Recalculate fit mode zoom on viewport resize."""
         presenter = self._tab_manager.get_active_presenter()
-        if presenter is not None and presenter.fit_mode is not FitMode.NONE:
-            presenter.set_fit_mode(presenter.fit_mode, width, height)
+        viewport = self._tab_manager.get_active_viewport()
+        if (
+            presenter is not None
+            and presenter.fit_mode is not FitMode.NONE
+            and viewport is not None
+        ):
+            w, h = self._effective_viewport_size(viewport)
+            presenter.set_fit_mode(presenter.fit_mode, w, h)
 
     def _on_zoom_at_cursor(self, step: float, _scene_pos: QPointF) -> None:
         """Handle Ctrl+scroll zoom from viewport."""
@@ -425,13 +459,30 @@ class KPdfApp:
             presenter.set_zoom(presenter.zoom + step)
 
     def _on_presenter_zoom_changed(self, zoom: float) -> None:
-        """Push zoom changes from presenter back to toolbar."""
+        """Push zoom changes from presenter back to toolbar and re-render."""
         self._window.zoom_toolbar.set_zoom(zoom)
         self._window._zoom_label.setText(f"{int(zoom * 100)}%")
+        self._relayout_viewport()
 
     def _on_presenter_rotation_changed(self, rotation: int) -> None:
-        """Push rotation changes from presenter back to toolbar."""
+        """Push rotation changes from presenter back to toolbar and re-render."""
         self._window.zoom_toolbar.set_rotation(rotation)
+        self._relayout_viewport()
+
+    def _relayout_viewport(self) -> None:
+        """Re-layout the active viewport and re-render visible pages.
+
+        Called after zoom or rotation changes to immediately update the
+        display without requiring the user to scroll.
+        """
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None and presenter.model is not None:
+            viewport.set_document(
+                presenter.model.pages,
+                zoom=presenter.zoom,
+                rotation=presenter.rotation,
+            )
 
     def _on_tab_switched_zoom(self, session_id: str) -> None:
         """Push the new tab's zoom/rotation/fit_mode state to toolbar."""
