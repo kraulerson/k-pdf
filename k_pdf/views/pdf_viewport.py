@@ -69,6 +69,7 @@ class PdfViewport(QGraphicsView):
     textbox_drawn = Signal(int, tuple)  # (page_index, (x0, y0, x1, y1))
     annotation_double_clicked = Signal(int, object)  # (page_index, annot)
     form_field_placed = Signal(int, tuple, int)  # (page_index, (x, y), tool_mode_int)
+    text_edit_requested = Signal(int, float, float)  # (page_index, pdf_x, pdf_y)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -416,7 +417,7 @@ class PdfViewport(QGraphicsView):
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self.unsetCursor()
             self.clear_selection_overlay()
-        elif mode is ToolMode.TEXT_SELECT:
+        elif mode is ToolMode.TEXT_SELECT or mode is ToolMode.TEXT_EDIT:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.IBeamCursor)
         elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX) or mode.value >= 10:
@@ -615,7 +616,12 @@ class PdfViewport(QGraphicsView):
         When a tool mode is active (STICKY_NOTE, TEXT_BOX, TEXT_SELECT) the
         event is always consumed so the default QGraphicsView double-click
         handler never fires and cannot cause crashes.
+        In TEXT_EDIT mode, a double-click emits text_edit_requested.
         """
+        if event.button() == Qt.MouseButton.LeftButton and self._tool_mode is ToolMode.TEXT_EDIT:
+            self._handle_text_edit_double_click(event)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             annot = self._hit_test_annotation(scene_pos)
@@ -673,6 +679,25 @@ class PdfViewport(QGraphicsView):
         pdf_y = max(0.0, min(pdf_y, page_info.height))
 
         self.form_field_placed.emit(page_index, (pdf_x, pdf_y), int(self._tool_mode))
+
+    def _handle_text_edit_double_click(self, event: QMouseEvent) -> None:
+        """Handle double-click in text edit mode — emit text_edit_requested."""
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+        pdf_x = max(0.0, min(pdf_x, page_info.width))
+        pdf_y = max(0.0, min(pdf_y, page_info.height))
+
+        self.text_edit_requested.emit(page_index, pdf_x, pdf_y)
 
     def _update_textbox_preview(self, start: QPointF, current: QPointF) -> None:
         """Draw a preview rectangle during text box drag."""
