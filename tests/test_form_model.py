@@ -21,7 +21,7 @@ class TestFormFieldType:
         assert FormFieldType.RADIO.value == "radio"
 
     def test_enum_member_count(self) -> None:
-        assert len(FormFieldType) == 4
+        assert len(FormFieldType) == 5
 
 
 class TestFormFieldDescriptor:
