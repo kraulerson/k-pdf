@@ -55,7 +55,7 @@ class TestTextBlockInfo:
         )
         try:
             block.page = 1  # type: ignore[misc]
-            assert False, "TextBlockInfo should be frozen"
+            raise AssertionError("TextBlockInfo should be frozen")
         except AttributeError:
             pass
 
@@ -86,7 +86,7 @@ class TestFontCheckResult:
         result = FontCheckResult(supported=True, font_name="Arial", reason="")
         try:
             result.supported = False  # type: ignore[misc]
-            assert False, "FontCheckResult should be frozen"
+            raise AssertionError("FontCheckResult should be frozen")
         except AttributeError:
             pass
 
@@ -111,7 +111,7 @@ class TestEditResult:
         result = EditResult(success=True, error_message="")
         try:
             result.success = False  # type: ignore[misc]
-            assert False, "EditResult should be frozen"
+            raise AssertionError("EditResult should be frozen")
         except AttributeError:
             pass
 
