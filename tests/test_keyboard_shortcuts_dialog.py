@@ -207,21 +207,15 @@ class TestKeyboardShortcutsDialog:
 class TestFormCreationShortcuts:
     def test_find_replace_shortcut_listed(self) -> None:
         defs = get_shortcut_definitions()
-        all_actions = [
-            action for _, shortcuts in defs for action, _ in shortcuts
-        ]
+        all_actions = [action for _, shortcuts in defs for action, _ in shortcuts]
         assert "Find and Replace" in all_actions
 
     def test_form_properties_shortcut_listed(self) -> None:
         defs = get_shortcut_definitions()
-        all_actions = [
-            action for _, shortcuts in defs for action, _ in shortcuts
-        ]
+        all_actions = [action for _, shortcuts in defs for action, _ in shortcuts]
         assert "Form Properties" in all_actions
 
     def test_edit_text_shortcut_listed(self) -> None:
         defs = get_shortcut_definitions()
-        all_actions = [
-            action for _, shortcuts in defs for action, _ in shortcuts
-        ]
+        all_actions = [action for _, shortcuts in defs for action, _ in shortcuts]
         assert "Edit Text" in all_actions
