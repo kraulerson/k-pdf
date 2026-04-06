@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import pymupdf
 
@@ -32,6 +32,14 @@ class FormEngine:
     All methods take a doc_handle (pymupdf.Document).
     The caller (FormPresenter) never imports pymupdf directly.
     """
+
+    # Map our field types to pymupdf widget type constants
+    _CREATE_TYPE_MAP: ClassVar[dict[FormFieldType, int]] = {
+        FormFieldType.TEXT: pymupdf.PDF_WIDGET_TYPE_TEXT,
+        FormFieldType.CHECKBOX: pymupdf.PDF_WIDGET_TYPE_CHECKBOX,
+        FormFieldType.DROPDOWN: pymupdf.PDF_WIDGET_TYPE_COMBOBOX,
+        FormFieldType.RADIO: pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON,
+    }
 
     def detect_fields(self, doc_handle: Any) -> list[FormFieldDescriptor]:
         """Detect all AcroForm fields across all pages.
@@ -151,3 +159,134 @@ class FormEngine:
             The field value as a string.
         """
         return str(widget.field_value or "")
+
+    def create_widget(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        field_type: FormFieldType,
+        rect: tuple[float, float, float, float],
+        properties: dict[str, Any] | None = None,
+    ) -> Any:
+        """Create a new form field widget on a page.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            field_type: The type of form field to create.
+            rect: Bounding rectangle (x0, y0, x1, y1) in PDF coordinates.
+            properties: Optional dict with keys: name, max_length, options, value.
+
+        Returns:
+            The created pymupdf Widget object.
+        """
+        props = properties or {}
+        page = doc_handle[page_index]
+        widget = pymupdf.Widget()
+
+        if field_type is FormFieldType.SIGNATURE:
+            widget.field_type = 7  # pymupdf signature widget type
+        else:
+            widget.field_type = self._CREATE_TYPE_MAP[field_type]
+
+        widget.rect = pymupdf.Rect(*rect)
+        widget.field_name = props.get("name", f"field_{page_index}_{id(widget)}")
+
+        if field_type is FormFieldType.TEXT and "max_length" in props:
+            widget.text_maxlen = props["max_length"]
+
+        if field_type is FormFieldType.DROPDOWN and "options" in props:
+            widget.choice_values = props["options"]
+
+        # Radio buttons must start in the Off state when first created;
+        # PyMuPDF's _checker will error on bad xref if field_value is truthy.
+        if field_type is FormFieldType.RADIO and "value" not in props:
+            widget.field_value = "Off"
+        elif "value" in props:
+            widget.field_value = props["value"]
+
+        page.add_widget(widget)
+        logger.debug(
+            "Created %s widget '%s' on page %d",
+            field_type.value,
+            widget.field_name,
+            page_index,
+        )
+        return widget
+
+    def delete_widget(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        widget: Any,
+    ) -> None:
+        """Delete a form field widget from a page.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            widget: The pymupdf Widget to delete.
+        """
+        page = doc_handle[page_index]
+        target_name = widget.field_name
+        for w in page.widgets():
+            if w.field_name == target_name:
+                page.delete_widget(w)
+                logger.debug("Deleted widget '%s' on page %d", target_name, page_index)
+                return
+        logger.warning("Widget '%s' not found on page %d for deletion", target_name, page_index)
+
+    def update_widget_properties(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        widget: Any,
+        properties: dict[str, Any],
+    ) -> None:
+        """Update properties of an existing form field widget.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            widget: The pymupdf Widget to update.
+            properties: Dict of properties to update (name, value, options, etc.).
+        """
+        page = doc_handle[page_index]
+        target_name = widget.field_name
+        for w in page.widgets():
+            if w.field_name == target_name:
+                if "name" in properties:
+                    w.field_name = properties["name"]
+                if "value" in properties:
+                    w.field_value = properties["value"]
+                if "options" in properties and hasattr(w, "choice_values"):
+                    w.choice_values = properties["options"]
+                w.update()
+                logger.debug("Updated widget '%s' on page %d", target_name, page_index)
+                return
+        logger.warning("Widget '%s' not found on page %d for update", target_name, page_index)
+
+    def get_widget_at(
+        self,
+        doc_handle: Any,
+        page_index: int,
+        x: float,
+        y: float,
+    ) -> Any | None:
+        """Return the form field widget at the given PDF coordinates, or None.
+
+        Args:
+            doc_handle: A pymupdf.Document handle.
+            page_index: Zero-based page index.
+            x: X coordinate in PDF page space.
+            y: Y coordinate in PDF page space.
+
+        Returns:
+            The pymupdf Widget at the point, or None.
+        """
+        page = doc_handle[page_index]
+        for w in page.widgets():
+            r = w.rect
+            if r.x0 <= x <= r.x1 and r.y0 <= y <= r.y1:
+                return w
+        return None

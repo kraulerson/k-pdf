@@ -220,3 +220,162 @@ class TestGetFieldValue:
                 assert val == ""
                 break
         doc.close()
+
+
+class TestCreateWidget:
+    @pytest.fixture
+    def engine(self) -> FormEngine:
+        return FormEngine()
+
+    @pytest.fixture
+    def blank_pdf(self, tmp_path: Path) -> Path:
+        path = tmp_path / "blank.pdf"
+        doc = pymupdf.open()
+        doc.new_page(width=612, height=792)
+        doc.save(str(path))
+        doc.close()
+        return path
+
+    def test_create_text_field(self, engine: FormEngine, blank_pdf: Path) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        widget = engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.TEXT,
+            rect=(72, 100, 272, 124),
+            properties={"name": "user_name", "max_length": 50},
+        )
+        assert widget is not None
+        assert widget.field_name == "user_name"
+        assert widget.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT
+        doc.close()
+
+    def test_create_checkbox(self, engine: FormEngine, blank_pdf: Path) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        widget = engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.CHECKBOX,
+            rect=(72, 140, 86, 154),
+            properties={"name": "agree_terms"},
+        )
+        assert widget is not None
+        assert widget.field_name == "agree_terms"
+        assert widget.field_type == pymupdf.PDF_WIDGET_TYPE_CHECKBOX
+        doc.close()
+
+    def test_create_dropdown(self, engine: FormEngine, blank_pdf: Path) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        widget = engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.DROPDOWN,
+            rect=(72, 180, 272, 204),
+            properties={"name": "country", "options": ["USA", "Canada", "Mexico"]},
+        )
+        assert widget is not None
+        assert widget.field_name == "country"
+        assert widget.field_type == pymupdf.PDF_WIDGET_TYPE_COMBOBOX
+        doc.close()
+
+    def test_create_radio(self, engine: FormEngine, blank_pdf: Path) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        widget = engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.RADIO,
+            rect=(72, 220, 86, 234),
+            properties={"name": "gender_male"},
+        )
+        assert widget is not None
+        assert widget.field_name == "gender_male"
+        assert widget.field_type == pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON
+        doc.close()
+
+    def test_create_signature(self, engine: FormEngine, blank_pdf: Path) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        widget = engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.SIGNATURE,
+            rect=(72, 260, 272, 320),
+            properties={"name": "applicant_sig"},
+        )
+        assert widget is not None
+        assert widget.field_name == "applicant_sig"
+        doc.close()
+
+    def test_created_field_persists_after_save(
+        self, engine: FormEngine, blank_pdf: Path, tmp_path: Path
+    ) -> None:
+        doc = pymupdf.open(str(blank_pdf))
+        engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.TEXT,
+            rect=(72, 100, 272, 124),
+            properties={"name": "persist_test"},
+        )
+        out_path = tmp_path / "saved.pdf"
+        doc.save(str(out_path))
+        doc.close()
+
+        doc2 = pymupdf.open(str(out_path))
+        fields = engine.detect_fields(doc2)
+        assert any(f.name == "persist_test" for f in fields)
+        doc2.close()
+
+
+class TestDeleteWidget:
+    @pytest.fixture
+    def engine(self) -> FormEngine:
+        return FormEngine()
+
+    def test_delete_widget_removes_field(self, engine: FormEngine, form_pdf: Path) -> None:
+        doc = pymupdf.open(str(form_pdf))
+        fields_before = engine.detect_fields(doc)
+        count_before = len(fields_before)
+
+        page = doc[0]
+        widget = next(page.widgets())
+        engine.delete_widget(doc, 0, widget)
+
+        fields_after = engine.detect_fields(doc)
+        assert len(fields_after) == count_before - 1
+        doc.close()
+
+
+class TestUpdateWidgetProperties:
+    @pytest.fixture
+    def engine(self) -> FormEngine:
+        return FormEngine()
+
+    def test_update_field_name(self, engine: FormEngine, form_pdf: Path) -> None:
+        doc = pymupdf.open(str(form_pdf))
+        page = doc[0]
+        widget = next(page.widgets())
+        engine.update_widget_properties(doc, 0, widget, {"name": "updated_name"})
+
+        fields = engine.detect_fields(doc)
+        names = [f.name for f in fields]
+        assert "updated_name" in names
+        doc.close()
+
+
+class TestGetWidgetAt:
+    @pytest.fixture
+    def engine(self) -> FormEngine:
+        return FormEngine()
+
+    def test_hit_test_on_field(self, engine: FormEngine, form_pdf: Path) -> None:
+        doc = pymupdf.open(str(form_pdf))
+        # full_name field is at rect (72, 100, 300, 120)
+        widget = engine.get_widget_at(doc, 0, 150.0, 110.0)
+        assert widget is not None
+        doc.close()
+
+    def test_hit_test_on_empty_area(self, engine: FormEngine, form_pdf: Path) -> None:
+        doc = pymupdf.open(str(form_pdf))
+        widget = engine.get_widget_at(doc, 0, 500.0, 500.0)
+        assert widget is None
+        doc.close()
