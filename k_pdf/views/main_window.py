@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from k_pdf.views.annotation_panel import AnnotationSummaryPanel
+from k_pdf.views.find_replace_bar import FindReplaceBar
 from k_pdf.views.form_properties_panel import FormPropertiesPanel
 from k_pdf.views.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 from k_pdf.views.navigation_panel import NavigationPanel
@@ -133,12 +134,17 @@ class MainWindow(QMainWindow):
         self._search_bar = SearchBar(self)
         self._search_bar.closed.connect(self._hide_search_bar)
 
+        # Find-and-replace bar (above viewport area, hidden by default)
+        self._find_replace_bar = FindReplaceBar(self)
+        self._find_replace_bar.closed.connect(self._hide_find_replace_bar)
+
         # Central container: search bar + stacked widget
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
         central_layout.setSpacing(0)
         central_layout.addWidget(self._search_bar)
+        central_layout.addWidget(self._find_replace_bar)
         central_layout.addWidget(self._stacked)
         self.setCentralWidget(central)
 
@@ -198,6 +204,11 @@ class MainWindow(QMainWindow):
     def search_bar(self) -> SearchBar:
         """Return the search bar widget."""
         return self._search_bar
+
+    @property
+    def find_replace_bar(self) -> FindReplaceBar:
+        """Return the find-and-replace bar widget."""
+        return self._find_replace_bar
 
     @property
     def zoom_toolbar(self) -> ZoomToolBar:
@@ -316,7 +327,7 @@ class MainWindow(QMainWindow):
 
         find_replace_action = QAction("Find and &Replace...", self)
         find_replace_action.setShortcut(QKeySequence("Ctrl+H"))
-        find_replace_action.triggered.connect(self.find_replace_requested.emit)
+        find_replace_action.triggered.connect(self._show_find_replace_bar)
         edit_menu.addAction(find_replace_action)
 
         edit_menu.addSeparator()
@@ -530,6 +541,16 @@ class MainWindow(QMainWindow):
     def _hide_search_bar(self) -> None:
         """Hide the search bar."""
         self._search_bar.hide()
+
+    def _show_find_replace_bar(self) -> None:
+        """Show the find-and-replace bar and focus the input field."""
+        self._search_bar.hide()  # Hide the simple search bar if visible
+        self._find_replace_bar.show()
+        self._find_replace_bar.focus_input()
+
+    def _hide_find_replace_bar(self) -> None:
+        """Hide the find-and-replace bar."""
+        self._find_replace_bar.hide()
 
     def _open_file_dialog(self) -> None:
         """Show the native file picker and emit file_open_requested."""

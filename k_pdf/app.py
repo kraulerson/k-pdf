@@ -31,11 +31,13 @@ from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.page_management_presenter import PageManagementPresenter
 from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
+from k_pdf.presenters.text_edit_presenter import TextEditPresenter
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.services.form_engine import FormEngine
 from k_pdf.services.page_engine import PageEngine
 from k_pdf.services.pdf_engine import PdfEngine
 from k_pdf.services.print_service import PrintService
+from k_pdf.services.text_edit_engine import TextEditEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
 from k_pdf.views.form_field_popup import FormFieldPopup
 from k_pdf.views.main_window import MainWindow
@@ -88,6 +90,11 @@ class KPdfApp:
         self._page_engine = PageEngine()
         self._form_creation_presenter = FormCreationPresenter(
             form_engine=self._form_engine,
+            tab_manager=self._tab_manager,
+        )
+        self._text_edit_engine = TextEditEngine()
+        self._text_edit_presenter = TextEditPresenter(
+            text_edit_engine=self._text_edit_engine,
             tab_manager=self._tab_manager,
         )
         self._form_field_popup: FormFieldPopup | None = None
@@ -345,6 +352,34 @@ class KPdfApp:
 
         # Document ready -> enable form creation tools
         self._tab_manager.document_ready.connect(self._on_document_ready_form_creation)
+
+        # Text editing wiring
+        # Find-replace bar -> search (reuses SearchPresenter for finding)
+        find_replace = self._window.find_replace_bar
+        find_replace.search_requested.connect(
+            lambda q, cs, ww: self._search_presenter.start_search(
+                q, case_sensitive=cs, whole_word=ww
+            )
+        )
+        find_replace.next_requested.connect(self._search_presenter.next_match)
+        find_replace.previous_requested.connect(self._search_presenter.previous_match)
+        find_replace.closed.connect(self._search_presenter.close_search)
+        find_replace.replace_requested.connect(self._on_replace_current)
+        find_replace.replace_all_requested.connect(self._on_replace_all)
+
+        # SearchPresenter -> FindReplaceBar (match count updates)
+        self._search_presenter.matches_updated.connect(find_replace.set_match_count)
+        self._search_presenter.no_text_layer.connect(find_replace.set_no_text_layer)
+
+        # TextEditPresenter signals
+        self._text_edit_presenter.text_changed.connect(self._on_text_edit_changed)
+        self._text_edit_presenter.replace_status.connect(find_replace.set_status)
+
+        # Text edit mode from tools menu
+        self._window.text_edit_toggled.connect(self._on_text_edit_toggled)
+
+        # Document ready -> wire text edit double-click
+        self._tab_manager.document_ready.connect(self._on_document_ready_text_edit)
 
     def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
         """Wire annotation summary panel for a newly loaded document."""
@@ -1056,6 +1091,128 @@ class KPdfApp:
         Will be connected to FormCreationPresenter.update_field_properties
         when field selection tracking is added.
         """
+
+    # --- Text editing handlers ---
+
+    def _on_text_edit_toggled(self, checked: bool) -> None:
+        """Handle Edit Text tool toggle."""
+        if checked:
+            self._text_edit_presenter.set_tool_mode(ToolMode.TEXT_EDIT)
+        else:
+            self._text_edit_presenter.set_tool_mode(ToolMode.NONE)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(ToolMode.TEXT_EDIT if checked else ToolMode.NONE)
+
+    def _on_document_ready_text_edit(self, session_id: str, model: object) -> None:
+        """Wire text edit signals when a document loads."""
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            with contextlib.suppress(RuntimeError):
+                viewport.text_edit_requested.disconnect(self._on_text_edit_requested)
+            viewport.text_edit_requested.connect(self._on_text_edit_requested)
+
+    def _on_text_edit_requested(self, page_index: int, pdf_x: float, pdf_y: float) -> None:
+        """Handle double-click in text edit mode — show inline edit overlay."""
+        block = self._text_edit_presenter.get_text_block_at(page_index, pdf_x, pdf_y)
+        if block is None:
+            return  # No text at this position — no-op per spec
+
+        # Show font limitation dialog if subset font
+        if not block.is_fully_embedded:
+            reply = QMessageBox.warning(
+                self._window,
+                "Cannot Edit Text Directly",
+                f"This text uses a subset font ({block.font_name}) that only "
+                "contains the original characters. Direct editing is not possible.\n\n"
+                "Redact the original text and overlay new text using a standard "
+                "font (Helvetica). The result will look similar but use a different font.",
+                QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Ok,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if reply != QMessageBox.StandardButton.Ok:
+                return
+            # Will use redact_and_overlay path below
+
+        # For now, use a simple QInputDialog for inline editing
+        # A full floating overlay (like NoteEditor) can be added as a refinement
+        from PySide6.QtWidgets import QInputDialog
+
+        new_text, ok = QInputDialog.getText(
+            self._window,
+            "Edit Text",
+            f"Editing text (font: {block.font_name})",
+            text=block.text,
+        )
+        if not ok or new_text == block.text:
+            return
+
+        if block.is_fully_embedded:
+            result = self._text_edit_presenter.edit_inline(
+                page_index, block.rect, block.text, new_text
+            )
+            if not result.success:
+                QMessageBox.warning(
+                    self._window,
+                    "Edit Failed",
+                    result.error_message,
+                )
+        else:
+            self._text_edit_presenter.redact_and_overlay(
+                page_index, block.rect, new_text, block.font_size
+            )
+
+    def _on_replace_current(self, replacement_text: str) -> None:
+        """Handle Replace button from FindReplaceBar."""
+        # Get current match from SearchPresenter
+        sid = self._search_presenter._active_session_id
+        if sid is None or sid not in self._search_presenter._results:
+            return
+
+        result = self._search_presenter._results[sid]
+        rect = result.current_rect()
+        if rect is None:
+            return
+
+        self._text_edit_presenter.replace_current(
+            result.current_page,
+            rect,
+            result.query,
+            replacement_text,
+        )
+        # Advance to next match
+        self._search_presenter.next_match()
+
+    def _on_replace_all(self, replacement_text: str) -> None:
+        """Handle Replace All button from FindReplaceBar."""
+        sid = self._search_presenter._active_session_id
+        if sid is None or sid not in self._search_presenter._results:
+            return
+
+        search_result = self._search_presenter._results[sid]
+        if not search_result.matches:
+            return
+
+        result = self._text_edit_presenter.replace_all(
+            search_result.matches,
+            search_result.query,
+            replacement_text,
+        )
+
+        if result is not None and result.replaced_count > 0:
+            # Clear search results since text has changed
+            self._search_presenter.close_search()
+
+    def _on_text_edit_changed(self) -> None:
+        """Re-render viewport after text edit."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
