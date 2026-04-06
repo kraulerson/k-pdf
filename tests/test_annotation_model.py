@@ -143,3 +143,55 @@ class TestAnnotationInfo:
         for ann_type in ("Highlight", "Underline", "Strikethrough", "Note", "Text Box"):
             info = AnnotationInfo(page=0, ann_type=ann_type)
             assert info.ann_type == ann_type
+
+
+class TestToolModeFormFields:
+    def test_form_text_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.FORM_TEXT == 10
+
+    def test_form_checkbox_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.FORM_CHECKBOX == 11
+
+    def test_form_dropdown_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.FORM_DROPDOWN == 12
+
+    def test_form_radio_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.FORM_RADIO == 13
+
+    def test_form_signature_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.FORM_SIGNATURE == 14
+
+    def test_text_edit_mode_exists(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.TEXT_EDIT == 5
+
+    def test_original_modes_unchanged(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        assert ToolMode.NONE == 0
+        assert ToolMode.TEXT_SELECT == 1
+        assert ToolMode.STICKY_NOTE == 2
+        assert ToolMode.TEXT_BOX == 3
+
+    def test_form_modes_are_distinct(self) -> None:
+        from k_pdf.core.annotation_model import ToolMode
+
+        form_modes = [
+            ToolMode.FORM_TEXT,
+            ToolMode.FORM_CHECKBOX,
+            ToolMode.FORM_DROPDOWN,
+            ToolMode.FORM_RADIO,
+            ToolMode.FORM_SIGNATURE,
+        ]
+        assert len(set(form_modes)) == 5
