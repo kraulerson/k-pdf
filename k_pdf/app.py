@@ -16,6 +16,7 @@ from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
+from k_pdf.core.form_model import FormFieldType
 from k_pdf.core.preferences_manager import PreferencesManager
 from k_pdf.core.theme_manager import ThemeManager, ThemeMode
 from k_pdf.core.undo_manager import UndoManager
@@ -24,6 +25,7 @@ from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.annotation_presenter import AnnotationPresenter
 from k_pdf.presenters.annotation_summary_presenter import AnnotationSummaryPresenter
+from k_pdf.presenters.form_creation_presenter import FormCreationPresenter
 from k_pdf.presenters.form_presenter import FormPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.page_management_presenter import PageManagementPresenter
@@ -35,6 +37,7 @@ from k_pdf.services.page_engine import PageEngine
 from k_pdf.services.pdf_engine import PdfEngine
 from k_pdf.services.print_service import PrintService
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
+from k_pdf.views.form_field_popup import FormFieldPopup
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
 
@@ -83,6 +86,11 @@ class KPdfApp:
             tab_manager=self._tab_manager,
         )
         self._page_engine = PageEngine()
+        self._form_creation_presenter = FormCreationPresenter(
+            form_engine=self._form_engine,
+            tab_manager=self._tab_manager,
+        )
+        self._form_field_popup: FormFieldPopup | None = None
         self._page_management_presenter = PageManagementPresenter(
             page_engine=self._page_engine,
             tab_manager=self._tab_manager,
@@ -306,6 +314,37 @@ class KPdfApp:
         self._window.redo_requested.connect(self._on_redo)
         self._tab_manager.tab_switched.connect(self._on_tab_switched_undo)
         self._tab_manager.document_ready.connect(self._on_document_ready_undo)
+
+        # Form creation wiring
+        self._window.form_text_field_requested.connect(
+            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_TEXT)
+        )
+        self._window.form_checkbox_requested.connect(
+            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_CHECKBOX)
+        )
+        self._window.form_dropdown_requested.connect(
+            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_DROPDOWN)
+        )
+        self._window.form_radio_requested.connect(
+            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_RADIO)
+        )
+        self._window.form_signature_requested.connect(
+            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_SIGNATURE)
+        )
+        self._form_creation_presenter.tool_mode_changed.connect(self._on_form_tool_mode_changed)
+        self._form_creation_presenter.field_created.connect(self._on_form_field_changed)
+        self._form_creation_presenter.field_deleted.connect(self._on_form_field_changed)
+
+        # Form properties panel wiring
+        self._window.form_properties_panel.delete_requested.connect(
+            self._on_form_field_delete_from_panel
+        )
+        self._window.form_properties_panel.properties_changed.connect(
+            self._on_form_field_props_changed
+        )
+
+        # Document ready -> enable form creation tools
+        self._tab_manager.document_ready.connect(self._on_document_ready_form_creation)
 
     def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
         """Wire annotation summary panel for a newly loaded document."""
@@ -925,6 +964,98 @@ class KPdfApp:
             can_redo=undo_mgr.can_redo,
             redo_text=redo_text,
         )
+
+    # --- Form creation handlers ---
+
+    def _on_form_tool_mode_changed(self, mode_int: int) -> None:
+        """Update viewport tool mode for form field placement."""
+        mode = ToolMode(mode_int)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(mode)
+
+    def _on_document_ready_form_creation(self, session_id: str, model: object) -> None:
+        """Enable form creation tools when a document loads."""
+        self._window.set_form_tools_enabled(True)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            # Avoid duplicate connections by disconnecting first
+            with contextlib.suppress(RuntimeError):
+                viewport.form_field_placed.disconnect(self._on_form_field_placed)
+            viewport.form_field_placed.connect(self._on_form_field_placed)
+
+    def _on_form_field_placed(
+        self, page_index: int, point: tuple[float, float], tool_mode_int: int
+    ) -> None:
+        """Handle click-to-place from viewport — show FormFieldPopup."""
+        field_type = self._form_creation_presenter.pending_field_type
+        if field_type is None:
+            return
+
+        # Create and show popup
+        self._form_field_popup = FormFieldPopup(field_type)
+        self._form_field_popup.create_requested.connect(
+            lambda props: self._on_popup_create(page_index, point, field_type, props)
+        )
+        self._form_field_popup.more_requested.connect(
+            lambda props: self._on_popup_more(page_index, point, field_type, props)
+        )
+        self._form_field_popup.cancel_requested.connect(self._on_popup_cancel)
+
+        # Position near click point
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            global_pos = viewport.mapToGlobal(viewport.rect().center())
+            self._form_field_popup.show_near(global_pos.x(), global_pos.y())
+
+    def _on_popup_create(
+        self,
+        page_index: int,
+        point: tuple[float, float],
+        field_type: FormFieldType,
+        props: dict[str, object],
+    ) -> None:
+        """Handle Create from FormFieldPopup."""
+        self._form_creation_presenter.create_field(page_index, point, field_type, props)
+
+    def _on_popup_more(
+        self,
+        page_index: int,
+        point: tuple[float, float],
+        field_type: FormFieldType,
+        props: dict[str, object],
+    ) -> None:
+        """Handle More... from FormFieldPopup — create field and open properties panel."""
+        self._form_creation_presenter.create_field(page_index, point, field_type, props)
+        props["field_type"] = field_type
+        props["page"] = page_index
+        self._window.form_properties_panel.load_properties(props)
+        self._window.form_properties_panel.show()
+
+    def _on_popup_cancel(self) -> None:
+        """Handle Cancel from FormFieldPopup — tool mode stays active."""
+
+    def _on_form_field_changed(self) -> None:
+        """Re-render viewport after form field create/delete."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
+
+    def _on_form_field_delete_from_panel(self) -> None:
+        """Handle Delete button from FormPropertiesPanel."""
+        self._window.form_properties_panel.clear()
+
+    def _on_form_field_props_changed(self, props: dict[str, object]) -> None:
+        """Handle property changes from FormPropertiesPanel.
+
+        Will be connected to FormCreationPresenter.update_field_properties
+        when field selection tracking is added.
+        """
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""
