@@ -21,12 +21,15 @@ Intake, Bible, or prior context.
 
 ## Current State
 - **Project:** K-PDF
-- **Phase:** 2 (Construction)
+- **Phase:** 2 (Construction) + Post-MVP
 - **Track:** Standard
 - **Features built:** Features 1-12 + Keyboard Shortcuts Dialog + Printing + Preferences + Undo/Redo + Text Copy (Open/Render, Multi-Tab, Navigation, Search, Zoom/Rotate, Text Markup, Sticky Notes, Forms/Save, Page Management, Merge PDFs, Dark Mode, Annotation Summary, Keyboard Shortcuts, Printing, Preferences, Undo/Redo, Text Copy)
-- **Features remaining:** 2 implicit (see MVP Cutline)
-- **Known issues:** Coverage at ~85% (threshold 65%)
-- **Last session summary:** Merged Text Copy feature branch — Ctrl+C copies selected text to clipboard, Ctrl+A selects all text on current page, Edit menu Copy/Select All actions, status bar feedback.
+- **Post-MVP completed:** Form Field Creation (all 10 tasks) + Text Editing (all 7 tasks)
+- **Active branch:** `feature/form-creation-text-editing` (20 commits ahead of main)
+- **Known issues:** Coverage at ~83% (threshold 65%)
+- **Last session summary:** Completed both post-MVP features on the same branch. Form Field Creation: 5 field types (text, checkbox, dropdown, radio, signature) with FormEngine extensions, FormFieldPopup, FormPropertiesPanel, FormCreationPresenter, viewport/MainWindow/KPdfApp wiring, keyboard shortcuts. Text Editing: TextEditModel dataclasses, TextEditEngine (get_text_block, font check, replace, redact-and-overlay), FindReplaceBar, TextEditPresenter, viewport TEXT_EDIT mode with double-click, full KPdfApp wiring with font limitation dialog. All 1056 tests pass. Next: Use finishing-a-development-branch skill to merge or create PR.
+
+Update this section at the end of every session.
 
 Update this section at the end of every session.
 
