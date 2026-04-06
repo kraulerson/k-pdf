@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
 )
 
 from k_pdf.views.annotation_panel import AnnotationSummaryPanel
+from k_pdf.views.form_properties_panel import FormPropertiesPanel
 from k_pdf.views.keyboard_shortcuts_dialog import KeyboardShortcutsDialog
 from k_pdf.views.navigation_panel import NavigationPanel
 from k_pdf.views.page_manager_panel import PageManagerPanel
@@ -93,6 +94,13 @@ class MainWindow(QMainWindow):
     redo_requested = Signal()
     copy_requested = Signal()
     select_all_requested = Signal()
+    form_text_field_requested = Signal()
+    form_checkbox_requested = Signal()
+    form_dropdown_requested = Signal()
+    form_radio_requested = Signal()
+    form_signature_requested = Signal()
+    find_replace_requested = Signal()
+    text_edit_toggled = Signal(bool)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the main window with stacked widget, menus, and status bar."""
@@ -149,6 +157,11 @@ class MainWindow(QMainWindow):
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._annotation_summary_panel)
         self._annotation_summary_panel.hide()
 
+        # Form Properties panel (right dock)
+        self._form_properties_panel = FormPropertiesPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self._form_properties_panel)
+        self._form_properties_panel.hide()
+
         # Status bar
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
@@ -200,6 +213,11 @@ class MainWindow(QMainWindow):
     def annotation_summary_panel(self) -> AnnotationSummaryPanel:
         """Return the annotation summary panel dock widget."""
         return self._annotation_summary_panel
+
+    @property
+    def form_properties_panel(self) -> FormPropertiesPanel:
+        """Return the form properties panel dock widget."""
+        return self._form_properties_panel
 
     @property
     def tools_menu(self) -> QMenu:
@@ -296,6 +314,11 @@ class MainWindow(QMainWindow):
         find_action.triggered.connect(self._show_search_bar)
         edit_menu.addAction(find_action)
 
+        find_replace_action = QAction("Find and &Replace...", self)
+        find_replace_action.setShortcut(QKeySequence("Ctrl+H"))
+        find_replace_action.triggered.connect(self.find_replace_requested.emit)
+        edit_menu.addAction(find_replace_action)
+
         edit_menu.addSeparator()
 
         prefs_action = QAction("&Preferences...", self)
@@ -321,6 +344,11 @@ class MainWindow(QMainWindow):
         toggle_page_mgr.setText("Page &Manager")
         toggle_page_mgr.setShortcut(QKeySequence("F7"))
         view_menu.addAction(toggle_page_mgr)
+
+        toggle_form_props = self._form_properties_panel.toggleViewAction()
+        toggle_form_props.setText("&Form Properties")
+        toggle_form_props.setShortcut(QKeySequence("F8"))
+        view_menu.addAction(toggle_form_props)
 
         view_menu.addSeparator()
 
@@ -426,6 +454,45 @@ class MainWindow(QMainWindow):
         self._tool_action_group.addAction(self._text_box_action)
         self._tools_menu.addAction(self._text_box_action)
 
+        self._text_edit_action = QAction("&Edit Text", self)
+        self._text_edit_action.setShortcut(QKeySequence("Ctrl+E"))
+        self._text_edit_action.setCheckable(True)
+        self._text_edit_action.setEnabled(False)
+        self._text_edit_action.setToolTip("Double-click text to edit in place")
+        self._text_edit_action.toggled.connect(self.text_edit_toggled.emit)
+        self._tool_action_group.addAction(self._text_edit_action)
+        self._tools_menu.addAction(self._text_edit_action)
+
+        self._tools_menu.addSeparator()
+
+        # Form Fields submenu
+        form_menu = self._tools_menu.addMenu("&Form Fields")
+
+        self._form_text_action = QAction("Text Field", self)
+        self._form_text_action.setEnabled(False)
+        self._form_text_action.triggered.connect(self.form_text_field_requested.emit)
+        form_menu.addAction(self._form_text_action)
+
+        self._form_checkbox_action = QAction("Checkbox", self)
+        self._form_checkbox_action.setEnabled(False)
+        self._form_checkbox_action.triggered.connect(self.form_checkbox_requested.emit)
+        form_menu.addAction(self._form_checkbox_action)
+
+        self._form_dropdown_action = QAction("Dropdown", self)
+        self._form_dropdown_action.setEnabled(False)
+        self._form_dropdown_action.triggered.connect(self.form_dropdown_requested.emit)
+        form_menu.addAction(self._form_dropdown_action)
+
+        self._form_radio_action = QAction("Radio Button", self)
+        self._form_radio_action.setEnabled(False)
+        self._form_radio_action.triggered.connect(self.form_radio_requested.emit)
+        form_menu.addAction(self._form_radio_action)
+
+        self._form_signature_action = QAction("Signature Field", self)
+        self._form_signature_action.setEnabled(False)
+        self._form_signature_action.triggered.connect(self.form_signature_requested.emit)
+        form_menu.addAction(self._form_signature_action)
+
         # Help menu
         self._help_menu = menu_bar.addMenu("&Help")
 
@@ -529,6 +596,19 @@ class MainWindow(QMainWindow):
         self._text_select_action.setEnabled(enabled)
         self._sticky_note_action.setEnabled(enabled)
         self._text_box_action.setEnabled(enabled)
+
+    def set_form_tools_enabled(self, enabled: bool) -> None:
+        """Enable or disable form field creation actions.
+
+        Args:
+            enabled: True to enable, False to disable.
+        """
+        self._form_text_action.setEnabled(enabled)
+        self._form_checkbox_action.setEnabled(enabled)
+        self._form_dropdown_action.setEnabled(enabled)
+        self._form_radio_action.setEnabled(enabled)
+        self._form_signature_action.setEnabled(enabled)
+        self._text_edit_action.setEnabled(enabled)
 
     def set_theme_mode(self, mode: object) -> None:
         """Update the UI to reflect the current theme mode.

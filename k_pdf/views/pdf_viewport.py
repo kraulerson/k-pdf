@@ -68,6 +68,7 @@ class PdfViewport(QGraphicsView):
     note_placed = Signal(int, tuple)  # (page_index, (x, y))
     textbox_drawn = Signal(int, tuple)  # (page_index, (x0, y0, x1, y1))
     annotation_double_clicked = Signal(int, object)  # (page_index, annot)
+    form_field_placed = Signal(int, tuple, int)  # (page_index, (x, y), tool_mode_int)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -418,7 +419,8 @@ class PdfViewport(QGraphicsView):
         elif mode is ToolMode.TEXT_SELECT:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.IBeamCursor)
-        elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX):
+        elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX) or mode.value >= 10:
+            # STICKY_NOTE, TEXT_BOX, and all FORM_* modes use cross cursor
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.CrossCursor)
 
@@ -553,6 +555,10 @@ class PdfViewport(QGraphicsView):
                 self._textbox_drag_start = self.mapToScene(event.pos())
                 event.accept()
                 return
+            if self._tool_mode.value >= 10:  # FORM_* modes
+                self._handle_form_field_click(event)
+                event.accept()
+                return
         if event.button() == Qt.MouseButton.RightButton:
             self._show_annotation_context_menu(event)
             event.accept()
@@ -646,6 +652,27 @@ class PdfViewport(QGraphicsView):
         pdf_y = max(0.0, min(pdf_y, page_info.height))
 
         self.note_placed.emit(page_index, (pdf_x, pdf_y))
+
+    def _handle_form_field_click(self, event: QMouseEvent) -> None:
+        """Handle click in form field placement mode — emit form_field_placed."""
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+
+        # Snap to page bounds
+        pdf_x = max(0.0, min(pdf_x, page_info.width))
+        pdf_y = max(0.0, min(pdf_y, page_info.height))
+
+        self.form_field_placed.emit(page_index, (pdf_x, pdf_y), int(self._tool_mode))
 
     def _update_textbox_preview(self, start: QPointF, current: QPointF) -> None:
         """Draw a preview rectangle during text box drag."""
