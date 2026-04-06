@@ -41,6 +41,29 @@ class FormEngine:
         FormFieldType.RADIO: pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON,
     }
 
+    @staticmethod
+    def widget_type_to_field_type(widget_type_int: int) -> FormFieldType | None:
+        """Map a pymupdf widget type integer to FormFieldType.
+
+        Covers all five supported field types including SIGNATURE (type 7),
+        which is absent from _CREATE_TYPE_MAP because PyMuPDF has no named
+        constant for it.
+
+        Args:
+            widget_type_int: The pymupdf Widget.field_type integer value.
+
+        Returns:
+            The matching FormFieldType, or None if the type is unsupported.
+        """
+        _reverse: dict[int, FormFieldType] = {
+            pymupdf.PDF_WIDGET_TYPE_TEXT: FormFieldType.TEXT,
+            pymupdf.PDF_WIDGET_TYPE_CHECKBOX: FormFieldType.CHECKBOX,
+            pymupdf.PDF_WIDGET_TYPE_COMBOBOX: FormFieldType.DROPDOWN,
+            pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON: FormFieldType.RADIO,
+            7: FormFieldType.SIGNATURE,  # no named constant in pymupdf
+        }
+        return _reverse.get(widget_type_int)
+
     def detect_fields(self, doc_handle: Any) -> list[FormFieldDescriptor]:
         """Detect all AcroForm fields across all pages.
 

@@ -14,6 +14,7 @@ from PySide6.QtCore import QObject, Signal
 from k_pdf.core.annotation_model import ToolMode
 from k_pdf.core.form_model import FormFieldType
 from k_pdf.core.undo_manager import UndoAction
+from k_pdf.presenters.tab_manager import TabManager
 from k_pdf.services.form_engine import FormEngine
 
 logger = logging.getLogger("k_pdf.presenters.form_creation_presenter")
@@ -55,7 +56,7 @@ class FormCreationPresenter(QObject):
     def __init__(
         self,
         form_engine: FormEngine,
-        tab_manager: Any,
+        tab_manager: TabManager,
         parent: QObject | None = None,
     ) -> None:
         """Initialize the form creation presenter.
@@ -70,6 +71,7 @@ class FormCreationPresenter(QObject):
         self._tab_manager = tab_manager
         self._tool_mode: ToolMode = ToolMode.NONE
         self._pending_field_type: FormFieldType | None = None
+        self._tab_manager.tab_switched.connect(self.on_tab_switched)
 
     @property
     def tool_mode(self) -> ToolMode:
@@ -185,7 +187,7 @@ class FormCreationPresenter(QObject):
 
         model = doc_presenter.model
         field_name = widget.field_name
-        field_type_int = widget.field_type
+        field_type = self._engine.widget_type_to_field_type(widget.field_type)
         rect = (widget.rect.x0, widget.rect.y0, widget.rect.x1, widget.rect.y1)
 
         self._engine.delete_widget(model.doc_handle, page_index, widget)
@@ -200,11 +202,9 @@ class FormCreationPresenter(QObject):
         if undo_mgr is not None:
 
             def undo() -> None:
-                reverse_map = {v: k for k, v in FormEngine._CREATE_TYPE_MAP.items()}
-                ft = reverse_map.get(field_type_int)
-                if ft is not None:
+                if field_type is not None:
                     self._engine.create_widget(
-                        model.doc_handle, page_index, ft, rect, {"name": field_name}
+                        model.doc_handle, page_index, field_type, rect, {"name": field_name}
                     )
                 model.dirty = True
                 self.dirty_changed.emit(True)
