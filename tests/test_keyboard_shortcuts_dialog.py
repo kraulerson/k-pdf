@@ -53,26 +53,29 @@ class TestGetShortcutDefinitions:
         assert "Merge Documents" in actions
         assert "Quit" in actions
 
-    def test_edit_category_has_four_shortcuts(self) -> None:
+    def test_edit_category_has_five_shortcuts(self) -> None:
         defs = get_shortcut_definitions()
         edit_shortcuts = defs[1][1]
-        assert len(edit_shortcuts) == 4
+        assert len(edit_shortcuts) == 5
         actions = [a for a, _ in edit_shortcuts]
         assert "Undo" in actions
         assert "Redo" in actions
         assert "Find" in actions
         assert "Copy" in actions
+        assert "Find and Replace" in actions
 
-    def test_view_category_has_nine_shortcuts(self) -> None:
+    def test_view_category_has_ten_shortcuts(self) -> None:
         defs = get_shortcut_definitions()
         view_shortcuts = defs[2][1]
-        assert len(view_shortcuts) == 9
+        assert len(view_shortcuts) == 10
 
-    def test_tools_category_has_one_shortcut(self) -> None:
+    def test_tools_category_has_two_shortcuts(self) -> None:
         defs = get_shortcut_definitions()
         tools_shortcuts = defs[3][1]
-        assert len(tools_shortcuts) == 1
-        assert tools_shortcuts[0][0] == "Text Selection"
+        assert len(tools_shortcuts) == 2
+        actions = [a for a, _ in tools_shortcuts]
+        assert "Text Selection" in actions
+        assert "Edit Text" in actions
 
     def test_navigation_category_has_four_shortcuts(self) -> None:
         defs = get_shortcut_definitions()
@@ -103,7 +106,7 @@ class TestGetShortcutDefinitions:
     def test_total_shortcut_count(self) -> None:
         defs = get_shortcut_definitions()
         total = sum(len(shortcuts) for _, shortcuts in defs)
-        assert total == 24
+        assert total == 27
 
 
 class TestKeyboardShortcutsDialog:
@@ -170,10 +173,10 @@ class TestKeyboardShortcutsDialog:
                 assert not (item.flags() & Qt.ItemFlag.ItemIsSelectable)
 
     def test_total_row_count(self) -> None:
-        """5 category headers + 24 shortcut rows = 29 total rows."""
+        """5 category headers + 27 shortcut rows = 32 total rows."""
         dialog = KeyboardShortcutsDialog()
         table = dialog._table
-        assert table.rowCount() == 29
+        assert table.rowCount() == 32
 
     def test_shortcut_rows_have_correct_data(self) -> None:
         """Verify first shortcut under File category is Open."""
@@ -199,3 +202,26 @@ class TestKeyboardShortcutsDialog:
         assert header.stretchLastSection() or (
             header.sectionResizeMode(0) == QHeaderView.ResizeMode.Stretch
         )
+
+
+class TestFormCreationShortcuts:
+    def test_find_replace_shortcut_listed(self) -> None:
+        defs = get_shortcut_definitions()
+        all_actions = [
+            action for _, shortcuts in defs for action, _ in shortcuts
+        ]
+        assert "Find and Replace" in all_actions
+
+    def test_form_properties_shortcut_listed(self) -> None:
+        defs = get_shortcut_definitions()
+        all_actions = [
+            action for _, shortcuts in defs for action, _ in shortcuts
+        ]
+        assert "Form Properties" in all_actions
+
+    def test_edit_text_shortcut_listed(self) -> None:
+        defs = get_shortcut_definitions()
+        all_actions = [
+            action for _, shortcuts in defs for action, _ in shortcuts
+        ]
+        assert "Edit Text" in all_actions

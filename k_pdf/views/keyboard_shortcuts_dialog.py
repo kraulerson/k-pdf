@@ -54,6 +54,7 @@ def get_shortcut_definitions() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("Redo", f"{mod}+Shift+Z"),
                 ("Find", f"{mod}+F"),
                 ("Copy", f"{mod}+C"),
+                ("Find and Replace", f"{mod}+H"),
             ],
         ),
         (
@@ -67,6 +68,7 @@ def get_shortcut_definitions() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("Navigation Panel", "F5"),
                 ("Annotation Panel", "F6"),
                 ("Page Manager", "F7"),
+                ("Form Properties", "F8"),
                 ("Toggle Dark Mode", f"{mod}+D"),
             ],
         ),
@@ -74,6 +76,7 @@ def get_shortcut_definitions() -> list[tuple[str, list[tuple[str, str]]]]:
             "Tools",
             [
                 ("Text Selection", f"{mod}+T"),
+                ("Edit Text", f"{mod}+E"),
             ],
         ),
         (
