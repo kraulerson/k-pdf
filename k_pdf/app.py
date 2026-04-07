@@ -324,19 +324,19 @@ class KPdfApp:
 
         # Form creation wiring
         self._window.form_text_field_requested.connect(
-            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_TEXT)
+            lambda: self._activate_form_tool(ToolMode.FORM_TEXT)
         )
         self._window.form_checkbox_requested.connect(
-            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_CHECKBOX)
+            lambda: self._activate_form_tool(ToolMode.FORM_CHECKBOX)
         )
         self._window.form_dropdown_requested.connect(
-            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_DROPDOWN)
+            lambda: self._activate_form_tool(ToolMode.FORM_DROPDOWN)
         )
         self._window.form_radio_requested.connect(
-            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_RADIO)
+            lambda: self._activate_form_tool(ToolMode.FORM_RADIO)
         )
         self._window.form_signature_requested.connect(
-            lambda: self._form_creation_presenter.set_tool_mode(ToolMode.FORM_SIGNATURE)
+            lambda: self._activate_form_tool(ToolMode.FORM_SIGNATURE)
         )
         self._form_creation_presenter.tool_mode_changed.connect(self._on_form_tool_mode_changed)
         self._form_creation_presenter.field_created.connect(self._on_form_field_changed)
@@ -644,6 +644,8 @@ class KPdfApp:
     def _on_tool_mode_changed(self, mode: int) -> None:
         """Update MainWindow tool menu check states when tool mode changes."""
         tool_mode = ToolMode(mode)
+        # Clear form creation mode when switching to a non-form tool
+        self._form_creation_presenter.set_tool_mode(ToolMode.NONE)
         # Block signals to avoid feedback loop
         self._window._text_select_action.blockSignals(True)
         self._window._sticky_note_action.blockSignals(True)
@@ -1002,12 +1004,37 @@ class KPdfApp:
 
     # --- Form creation handlers ---
 
+    def _activate_form_tool(self, mode: ToolMode) -> None:
+        """Activate a form field creation tool mode.
+
+        Unchecks any active tool in the action group and sets
+        the form creation presenter and viewport to the form mode.
+        """
+        # Uncheck all tools in the action group (Text Select, Sticky Note, etc.)
+        checked = self._window._tool_action_group.checkedAction()
+        if checked is not None:
+            checked.setChecked(False)
+
+        self._form_creation_presenter.set_tool_mode(mode)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(mode)
+
     def _on_form_tool_mode_changed(self, mode_int: int) -> None:
         """Update viewport tool mode for form field placement."""
         mode = ToolMode(mode_int)
         viewport = self._tab_manager.get_active_viewport()
         if viewport is not None:
             viewport.set_tool_mode(mode)
+
+    def _on_viewport_tool_reset(self) -> None:
+        """Handle Escape in viewport — reset all tool modes."""
+        self._form_creation_presenter.set_tool_mode(ToolMode.NONE)
+        self._text_edit_presenter.set_tool_mode(ToolMode.NONE)
+        # Uncheck tool action group
+        checked = self._window._tool_action_group.checkedAction()
+        if checked is not None:
+            checked.setChecked(False)
 
     def _on_document_ready_form_creation(self, session_id: str, model: object) -> None:
         """Enable form creation tools when a document loads."""
@@ -1018,6 +1045,9 @@ class KPdfApp:
             with contextlib.suppress(RuntimeError):
                 viewport.form_field_placed.disconnect(self._on_form_field_placed)
             viewport.form_field_placed.connect(self._on_form_field_placed)
+            with contextlib.suppress(RuntimeError):
+                viewport.tool_mode_reset.disconnect(self._on_viewport_tool_reset)
+            viewport.tool_mode_reset.connect(self._on_viewport_tool_reset)
 
     def _on_form_field_placed(
         self, page_index: int, point: tuple[float, float], tool_mode_int: int

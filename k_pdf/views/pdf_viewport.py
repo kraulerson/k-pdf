@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QImage,
+    QKeyEvent,
     QMouseEvent,
     QPen,
     QPixmap,
@@ -70,6 +71,7 @@ class PdfViewport(QGraphicsView):
     annotation_double_clicked = Signal(int, object)  # (page_index, annot)
     form_field_placed = Signal(int, tuple, int)  # (page_index, (x, y), tool_mode_int)
     text_edit_requested = Signal(int, float, float)  # (page_index, pdf_x, pdf_y)
+    tool_mode_reset = Signal()  # Emitted when Escape resets tool mode
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -637,6 +639,16 @@ class PdfViewport(QGraphicsView):
                 event.accept()
                 return
         super().mouseDoubleClickEvent(event)
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle key presses — Escape resets tool mode."""
+        if event.key() == Qt.Key.Key_Escape and self._tool_mode is not ToolMode.NONE:
+            self.set_tool_mode(ToolMode.NONE)
+            self.tool_mode_reset.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def _handle_sticky_note_click(self, event: QMouseEvent) -> None:
         """Handle click in sticky note mode — emit note_placed signal."""

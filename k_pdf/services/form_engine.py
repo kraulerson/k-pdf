@@ -229,6 +229,7 @@ class FormEngine:
             widget.field_value = props["value"]
 
         page.add_widget(widget)
+        widget.update()  # Generate appearance stream so get_pixmap renders it
         logger.debug(
             "Created %s widget '%s' on page %d",
             field_type.value,

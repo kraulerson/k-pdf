@@ -438,7 +438,7 @@ class MainWindow(QMainWindow):
 
         # Tool mode action group — only one tool active at a time
         self._tool_action_group = QActionGroup(self)
-        self._tool_action_group.setExclusive(True)
+        self._tool_action_group.setExclusionPolicy(QActionGroup.ExclusionPolicy.ExclusiveOptional)
 
         self._text_select_action = QAction("&Text Selection Mode", self)
         self._text_select_action.setShortcut(QKeySequence("Ctrl+T"))
