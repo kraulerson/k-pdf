@@ -9,7 +9,7 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
@@ -98,6 +98,8 @@ class KPdfApp:
             tab_manager=self._tab_manager,
         )
         self._form_field_popup: FormFieldPopup | None = None
+        self._selected_widget: Any = None
+        self._selected_widget_page: int = 0
         self._page_management_presenter = PageManagementPresenter(
             page_engine=self._page_engine,
             tab_manager=self._tab_manager,
@@ -1058,10 +1060,20 @@ class KPdfApp:
     def _on_form_field_placed(
         self, page_index: int, point: tuple[float, float], tool_mode_int: int
     ) -> None:
-        """Handle click-to-place from viewport — show FormFieldPopup."""
+        """Handle click-to-place from viewport — show popup or select existing field."""
         field_type = self._form_creation_presenter.pending_field_type
         if field_type is None:
             return
+
+        # Check if clicking on an existing field — select it instead of creating
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is not None and doc_presenter.model is not None:
+            existing = self._form_engine.get_widget_at(
+                doc_presenter.model.doc_handle, page_index, point[0], point[1]
+            )
+            if existing is not None:
+                self._select_form_field(page_index, existing)
+                return
 
         # Create and show popup
         self._form_field_popup = FormFieldPopup(field_type)
@@ -1078,6 +1090,20 @@ class KPdfApp:
         if viewport is not None:
             global_pos = viewport.mapToGlobal(viewport.rect().center())
             self._form_field_popup.show_near(global_pos.x(), global_pos.y())
+
+    def _select_form_field(self, page_index: int, widget: Any) -> None:
+        """Select an existing form field and show its properties."""
+        ft = self._form_engine.widget_type_to_field_type(widget.field_type)
+        props: dict[str, Any] = {
+            "name": widget.field_name,
+            "field_type": ft or FormFieldType.TEXT,
+            "page": page_index,
+            "rect": (widget.rect.x0, widget.rect.y0, widget.rect.x1, widget.rect.y1),
+        }
+        self._window.form_properties_panel.load_properties(props)
+        self._window.form_properties_panel.show()
+        self._selected_widget = widget
+        self._selected_widget_page = page_index
 
     def _on_popup_create(
         self,
@@ -1119,14 +1145,23 @@ class KPdfApp:
 
     def _on_form_field_delete_from_panel(self) -> None:
         """Handle Delete button from FormPropertiesPanel."""
+        if self._selected_widget is not None:
+            self._form_creation_presenter.delete_field(
+                self._selected_widget_page, self._selected_widget
+            )
+            self._selected_widget = None
+            self._selected_widget_page = 0
         self._window.form_properties_panel.clear()
 
     def _on_form_field_props_changed(self, props: dict[str, object]) -> None:
-        """Handle property changes from FormPropertiesPanel.
-
-        Will be connected to FormCreationPresenter.update_field_properties
-        when field selection tracking is added.
-        """
+        """Handle property changes from FormPropertiesPanel."""
+        if self._selected_widget is None:
+            return
+        self._form_creation_presenter.update_field_properties(
+            self._selected_widget_page, self._selected_widget, props
+        )
+        # Re-render to show changes
+        self._on_form_field_changed()
 
     # --- Text editing handlers ---
 
@@ -1183,6 +1218,18 @@ class KPdfApp:
         if not ok or new_text == block.text:
             return
 
+        # Warn if replacement is significantly longer than original
+        if len(new_text) > len(block.text) * 1.5:
+            reply = QMessageBox.question(
+                self._window,
+                "Replacement May Overflow",
+                "Replacement text may extend beyond the original area. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
         if block.is_fully_embedded:
             result = self._text_edit_presenter.edit_inline(
                 page_index, block.rect, block.text, new_text
@@ -1209,6 +1256,18 @@ class KPdfApp:
         rect = result.current_rect()
         if rect is None:
             return
+
+        # Warn if replacement is significantly longer than original
+        if len(replacement_text) > len(result.query) * 1.5:
+            reply = QMessageBox.question(
+                self._window,
+                "Replacement May Overflow",
+                "Replacement text may extend beyond the original area. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
 
         self._text_edit_presenter.replace_current(
             result.current_page,

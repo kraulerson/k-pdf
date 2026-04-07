@@ -43,11 +43,20 @@ def text_pdf(tmp_path: Path) -> Path:
 class TestGetTextBlock:
     def test_returns_block_at_text_position(self, engine: TextEditEngine, text_pdf: Path) -> None:
         doc = pymupdf.open(str(text_pdf))
-        block = engine.get_text_block(doc, 0, 100.0, 95.0)
+        # Use x=85.0 to reliably hit the "Hello" word (bbox ~72..99)
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
         assert block is not None
-        assert "Hello" in block.text
+        assert block.text == "Hello"
         assert block.font_name != ""
         assert block.font_size > 0
+        doc.close()
+
+    def test_returns_word_not_full_line(self, engine: TextEditEngine, text_pdf: Path) -> None:
+        doc = pymupdf.open(str(text_pdf))
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
+        assert block is not None
+        # Should return a single word, not the entire line
+        assert " " not in block.text.strip() or len(block.text.split()) == 1
         doc.close()
 
     def test_returns_none_at_empty_position(self, engine: TextEditEngine, text_pdf: Path) -> None:
@@ -58,7 +67,7 @@ class TestGetTextBlock:
 
     def test_returns_page_index(self, engine: TextEditEngine, text_pdf: Path) -> None:
         doc = pymupdf.open(str(text_pdf))
-        block = engine.get_text_block(doc, 0, 100.0, 95.0)
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
         assert block is not None
         assert block.page == 0
         doc.close()
@@ -67,7 +76,7 @@ class TestGetTextBlock:
 class TestCheckFontSupport:
     def test_standard_font_not_embedded(self, engine: TextEditEngine, text_pdf: Path) -> None:
         doc = pymupdf.open(str(text_pdf))
-        block = engine.get_text_block(doc, 0, 100.0, 95.0)
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
         assert block is not None
         result = engine.check_font_support(doc, 0, block.rect)
         # Standard fonts (helv) are not embedded in the PDF — they're built-in
@@ -79,12 +88,12 @@ class TestCheckFontSupport:
 class TestRedactAndOverlay:
     def test_replaces_text_via_redaction(self, engine: TextEditEngine, text_pdf: Path) -> None:
         doc = pymupdf.open(str(text_pdf))
-        block = engine.get_text_block(doc, 0, 100.0, 95.0)
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
         assert block is not None
 
         engine.redact_and_overlay(doc, 0, block.rect, "New Text", block.font_size)
 
-        # Verify old text is gone and new text is present
+        # Verify new text is present
         page = doc[0]
         page_text = page.get_text("text")
         assert "New Text" in page_text
@@ -92,7 +101,7 @@ class TestRedactAndOverlay:
 
     def test_redact_preserves_other_text(self, engine: TextEditEngine, text_pdf: Path) -> None:
         doc = pymupdf.open(str(text_pdf))
-        block = engine.get_text_block(doc, 0, 100.0, 95.0)
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
         assert block is not None
 
         engine.redact_and_overlay(doc, 0, block.rect, "Replaced", block.font_size)

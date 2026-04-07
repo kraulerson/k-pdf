@@ -33,9 +33,10 @@ class TextEditEngine:
         x: float,
         y: float,
     ) -> TextBlockInfo | None:
-        """Return the text span at the given PDF coordinates.
+        """Return the text word at the given PDF coordinates.
 
-        Uses get_text("dict") to find the span whose bbox contains (x, y).
+        Uses get_text("words") for word-level hit detection, then
+        get_text("dict") for font information.
 
         Args:
             doc_handle: A pymupdf.Document handle.
@@ -44,39 +45,55 @@ class TextEditEngine:
             y: Y coordinate in PDF page space.
 
         Returns:
-            TextBlockInfo with text content, font info, and bounding rect,
+            TextBlockInfo with word text, font info, and bounding rect,
             or None if no text at that position.
         """
         page = doc_handle[page_index]
-        data = page.get_text("dict")
 
+        # Step 1: Find the word at (x, y) using word-level bounding boxes
+        words = page.get_text("words")  # (x0, y0, x1, y1, text, block, line, word)
+        hit_word = None
+        for w in words:
+            wx0, wy0, wx1, wy1 = w[0], w[1], w[2], w[3]
+            if wx0 <= x <= wx1 and wy0 <= y <= wy1:
+                hit_word = w
+                break
+
+        if hit_word is None:
+            return None
+
+        word_rect = (hit_word[0], hit_word[1], hit_word[2], hit_word[3])
+        word_text = hit_word[4]
+
+        # Step 2: Get font info from the dict extraction at the word's midpoint
+        mid_x = (word_rect[0] + word_rect[2]) / 2
+        mid_y = (word_rect[1] + word_rect[3]) / 2
+        font_name = ""
+        font_size = 12.0
+        is_fully_embedded = True
+
+        data = page.get_text("dict")
         for block in data.get("blocks", []):
             if "lines" not in block:
                 continue
             for line in block["lines"]:
                 for span in line["spans"]:
                     bbox = span["bbox"]
-                    if bbox[0] <= x <= bbox[2] and bbox[1] <= y <= bbox[3]:
+                    if bbox[0] <= mid_x <= bbox[2] and bbox[1] <= mid_y <= bbox[3]:
                         font_name = span.get("font", "")
-                        # A font is considered "fully embedded" if it is not
-                        # a subset font. Subset fonts typically have a name
-                        # containing "+" (e.g., "ABCDEF+Arial") or end with
-                        # "-Subset". Standard PDF base-14 fonts (helv, cour,
-                        # etc.) are always available but not embedded.
                         is_subset = "+" in font_name or "-Subset" in font_name
-                        # Base-14 fonts are considered fully available for editing
                         base14 = _is_base14_font(font_name)
                         is_fully_embedded = base14 or (not is_subset)
+                        break
 
-                        return TextBlockInfo(
-                            page=page_index,
-                            rect=(bbox[0], bbox[1], bbox[2], bbox[3]),
-                            text=span.get("text", ""),
-                            font_name=font_name,
-                            font_size=span.get("size", 12.0),
-                            is_fully_embedded=is_fully_embedded,
-                        )
-        return None
+        return TextBlockInfo(
+            page=page_index,
+            rect=word_rect,
+            text=word_text,
+            font_name=font_name,
+            font_size=font_size,
+            is_fully_embedded=is_fully_embedded,
+        )
 
     def check_font_support(
         self,

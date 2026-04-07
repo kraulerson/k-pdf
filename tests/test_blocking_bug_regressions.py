@@ -196,3 +196,84 @@ class TestBug9EditTextUncheck:
 
         checked = win._tool_action_group.checkedAction()
         assert checked is None
+
+
+class TestBug8WordLevelSelection:
+    """Bug 8: get_text_block must return individual words, not entire lines.
+
+    Regression: TextEditEngine.get_text_block uses get_text("words") for
+    word-level hit detection instead of get_text("dict") spans.
+    """
+
+    def test_returns_single_word_not_line(self, tmp_path: Path) -> None:
+        """Clicking near 'Hello' should return just 'Hello', not 'Hello World'."""
+        path = tmp_path / "text.pdf"
+        doc = pymupdf.open()
+        page = doc.new_page(width=612, height=792)
+        page.insert_text(pymupdf.Point(72, 100), "Hello World", fontname="helv", fontsize=12)
+        doc.save(str(path))
+        doc.close()
+
+        from k_pdf.services.text_edit_engine import TextEditEngine
+
+        engine = TextEditEngine()
+        doc = pymupdf.open(str(path))
+        block = engine.get_text_block(doc, 0, 85.0, 95.0)
+        assert block is not None
+        # Must be a single word, not the full "Hello World" line
+        assert " " not in block.text.strip()
+        doc.close()
+
+
+class TestBug4And5FieldSelection:
+    """Bugs 4+5: Clicking existing field in form mode selects it.
+
+    Regression: _on_form_field_placed checks for existing fields via
+    get_widget_at before creating a new one.
+    """
+
+    def test_get_widget_at_finds_created_field(self, tmp_path: Path) -> None:
+        """FormEngine.get_widget_at returns a widget at the field's location."""
+        path = tmp_path / "blank.pdf"
+        doc = pymupdf.open()
+        doc.new_page(width=612, height=792)
+        doc.save(str(path))
+        doc.close()
+
+        engine = FormEngine()
+        doc = pymupdf.open(str(path))
+        engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.TEXT,
+            rect=(72, 100, 272, 124),
+            properties={"name": "selectable"},
+        )
+
+        # get_widget_at should find the field at its center
+        found = engine.get_widget_at(doc, 0, 172.0, 112.0)
+        assert found is not None
+        assert found.field_name == "selectable"
+        doc.close()
+
+    def test_get_widget_at_returns_none_outside_field(self, tmp_path: Path) -> None:
+        """FormEngine.get_widget_at returns None when no field at position."""
+        path = tmp_path / "blank.pdf"
+        doc = pymupdf.open()
+        doc.new_page(width=612, height=792)
+        doc.save(str(path))
+        doc.close()
+
+        engine = FormEngine()
+        doc = pymupdf.open(str(path))
+        engine.create_widget(
+            doc_handle=doc,
+            page_index=0,
+            field_type=FormFieldType.TEXT,
+            rect=(72, 100, 272, 124),
+            properties={"name": "isolated"},
+        )
+
+        found = engine.get_widget_at(doc, 0, 500.0, 500.0)
+        assert found is None
+        doc.close()
