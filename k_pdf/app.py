@@ -1021,11 +1021,17 @@ class KPdfApp:
             viewport.set_tool_mode(mode)
 
     def _on_form_tool_mode_changed(self, mode_int: int) -> None:
-        """Update viewport tool mode for form field placement."""
+        """Update viewport tool mode for form field placement.
+
+        Only sets viewport mode for FORM_* modes (value >= 10).
+        When clearing to NONE, the viewport is left as-is because
+        another presenter may have just set it.
+        """
         mode = ToolMode(mode_int)
-        viewport = self._tab_manager.get_active_viewport()
-        if viewport is not None:
-            viewport.set_tool_mode(mode)
+        if mode.value >= 10:  # Only set viewport for FORM_* modes
+            viewport = self._tab_manager.get_active_viewport()
+            if viewport is not None:
+                viewport.set_tool_mode(mode)
 
     def _on_viewport_tool_reset(self) -> None:
         """Handle Escape in viewport — reset all tool modes."""

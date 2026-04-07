@@ -215,6 +215,10 @@ class FormEngine:
         widget.rect = pymupdf.Rect(*rect)
         widget.field_name = props.get("name", f"field_{page_index}_{id(widget)}")
 
+        # Set visible border so the field is rendered with a visible outline
+        widget.border_color = (0, 0, 0)  # black border
+        widget.border_width = 1
+
         if field_type is FormFieldType.TEXT and "max_length" in props:
             widget.text_maxlen = props["max_length"]
 
