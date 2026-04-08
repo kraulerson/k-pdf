@@ -299,3 +299,30 @@ class TestFindReplaceShortcutNotCmdH:
                     )
                     return
         raise AssertionError("Find and Replace shortcut not found in definitions")
+
+
+class TestCIAppNaming:
+    """CI workflow renames main.app to K-PDF.app for distribution.
+
+    Regression: Nuitka outputs main.app — the app display name is set via
+    --macos-app-name in Info.plist. Verify the app sets its identity correctly.
+    """
+
+    def test_application_name_is_k_pdf(self) -> None:
+        """QApplication name must be K-PDF (used by macOS for Dock/Spotlight)."""
+        import ast
+        from pathlib import Path
+
+        main_src = Path("k_pdf/main.py").read_text()
+        tree = ast.parse(main_src)
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "setApplicationName"
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+            ):
+                assert node.args[0].value == "K-PDF"
+                return
+        raise AssertionError("setApplicationName('K-PDF') not found in main.py")
