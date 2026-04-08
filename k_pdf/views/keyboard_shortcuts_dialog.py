@@ -54,7 +54,7 @@ def get_shortcut_definitions() -> list[tuple[str, list[tuple[str, str]]]]:
                 ("Redo", f"{mod}+Shift+Z"),
                 ("Find", f"{mod}+F"),
                 ("Copy", f"{mod}+C"),
-                ("Find and Replace", f"{mod}+H"),
+                ("Find and Replace", f"{mod}+Shift+H"),
             ],
         ),
         (

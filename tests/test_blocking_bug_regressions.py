@@ -277,3 +277,25 @@ class TestBug4And5FieldSelection:
         found = engine.get_widget_at(doc, 0, 500.0, 500.0)
         assert found is None
         doc.close()
+
+
+class TestFindReplaceShortcutNotCmdH:
+    """Find and Replace must not use Ctrl+H (maps to Cmd+H = Hide on macOS).
+
+    Regression: Shortcut changed to Ctrl+Shift+H to avoid macOS system conflict.
+    """
+
+    def test_find_replace_shortcut_is_not_ctrl_h(self) -> None:
+        """Keyboard shortcut definitions must list Shift+H, not plain H."""
+        from k_pdf.views.keyboard_shortcuts_dialog import get_shortcut_definitions
+
+        defs = get_shortcut_definitions()
+        for _category, shortcuts in defs:
+            for action_name, shortcut in shortcuts:
+                if action_name == "Find and Replace":
+                    assert "Shift" in shortcut, (
+                        f"Find and Replace shortcut must include Shift to avoid "
+                        f"macOS Cmd+H conflict, got: {shortcut}"
+                    )
+                    return
+        raise AssertionError("Find and Replace shortcut not found in definitions")

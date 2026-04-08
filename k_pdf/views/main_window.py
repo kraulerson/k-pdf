@@ -326,7 +326,7 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(find_action)
 
         find_replace_action = QAction("Find and &Replace...", self)
-        find_replace_action.setShortcut(QKeySequence("Ctrl+H"))
+        find_replace_action.setShortcut(QKeySequence("Ctrl+Shift+H"))
         find_replace_action.triggered.connect(self._show_find_replace_bar)
         edit_menu.addAction(find_replace_action)
 
