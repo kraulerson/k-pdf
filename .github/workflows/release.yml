@@ -219,6 +219,8 @@ jobs:
           mv build/main.app "build/K-PDF.app"
 
           # Create polished DMG with drag-to-Applications layout
+          # create-dmg returns exit code 2 when it works but skips notarize
+          # so we handle signing and notarization separately
           create-dmg \
             --volname "K-PDF" \
             --volicon "k_pdf/resources/icons/k-pdf-icon.icns" \
@@ -228,10 +230,28 @@ jobs:
             --icon "K-PDF.app" 150 190 \
             --hide-extension "K-PDF.app" \
             --app-drop-link 450 190 \
-            --codesign "$IDENTITY" \
-            --notarize "$APPLE_ID" "$APPLE_APP_PASSWORD" "$APPLE_TEAM_ID" \
+            --no-internet-enable \
             "build/K-PDF-${VERSION}-macos.dmg" \
-            "build/K-PDF.app"
+            "build/K-PDF.app" \
+            || true  # create-dmg returns non-zero even on success sometimes
+
+          # Verify DMG was created
+          test -f "build/K-PDF-${VERSION}-macos.dmg" || { echo "DMG creation failed"; exit 1; }
+
+          # Sign the DMG
+          codesign --force --sign "$IDENTITY" "build/K-PDF-${VERSION}-macos.dmg"
+          echo "DMG signed."
+
+          # Notarize the DMG
+          xcrun notarytool submit "build/K-PDF-${VERSION}-macos.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+
+          # Staple the notarization ticket to the DMG
+          xcrun stapler staple "build/K-PDF-${VERSION}-macos.dmg"
 
           echo "DMG created, signed, and notarized."
           ls -lh "build/K-PDF-${VERSION}-macos.dmg"
