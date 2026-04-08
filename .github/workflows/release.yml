@@ -88,15 +88,18 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             NUITKA_ARGS+=(
               --macos-create-app-bundle
+              --macos-app-name=K-PDF
               --macos-app-icon=k_pdf/resources/icons/k-pdf-icon.icns
             )
           elif [[ "$RUNNER_OS" == "Windows" ]]; then
             NUITKA_ARGS+=(
+              --output-filename=K-PDF.exe
               --windows-console-mode=disable
               --windows-icon-from-ico=k_pdf/resources/icons/k-pdf-icon.ico
             )
           elif [[ "$RUNNER_OS" == "Linux" ]]; then
             NUITKA_ARGS+=(
+              --output-filename=K-PDF
               --linux-icon=k_pdf/resources/icons/k-pdf-icon.png
             )
           fi
@@ -113,7 +116,7 @@ jobs:
           if [[ "$RUNNER_OS" == "macOS" ]]; then
             # On macOS, put Python packages in Resources (not MacOS)
             # to avoid codesign rejecting .py files in the code directory
-            DIST=build/main.app/Contents/Resources/python-packages
+            DIST=build/K-PDF.app/Contents/Resources/python-packages
             mkdir -p "$DIST"
           else
             DIST=build/main.dist
@@ -127,8 +130,8 @@ jobs:
 
           # On macOS, remove stray .py/.pyc files from MacOS/ (codesign rejects them)
           if [[ "$RUNNER_OS" == "macOS" ]]; then
-            find build/main.app/Contents/MacOS -maxdepth 1 -name '*.py' -delete
-            find build/main.app/Contents/MacOS -maxdepth 1 -name '*.pyc' -delete
+            find build/K-PDF.app/Contents/MacOS -maxdepth 1 -name '*.py' -delete
+            find build/K-PDF.app/Contents/MacOS -maxdepth 1 -name '*.pyc' -delete
           fi
 
       # --- macOS: Sign, notarize, and create DMG ---
@@ -173,7 +176,7 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           IDENTITY="Developer ID Application: Karl Raulerson (M6M33BX75L)"
-          APP=build/main.app
+          APP=build/K-PDF.app
 
           # Sign ALL Mach-O binaries inside-out
           # Find every Mach-O file (regardless of extension) and sign it
@@ -184,7 +187,7 @@ jobs:
 
           # Re-sign the main executable and bundle last (inside-out order)
           codesign --force --options runtime --timestamp --sign "$IDENTITY" \
-            "$APP/Contents/MacOS/main"
+            "$APP/Contents/MacOS/K-PDF"
           codesign --force --options runtime --timestamp --sign "$IDENTITY" "$APP"
 
           echo "Signing complete. Verifying..."
@@ -198,7 +201,7 @@ jobs:
           APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          APP=build/main.app
+          APP=build/K-PDF.app
 
           # Create a zip for notarization submission
           ditto -c -k --keepParent "$APP" build/main-notarize.zip
@@ -230,7 +233,7 @@ jobs:
           cd build
           sleep 5  # ensure notarize zip handle is released
           hdiutil create -volname "K-PDF" \
-            -srcfolder main.app \
+            -srcfolder K-PDF.app \
             -ov -format UDZO \
             "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
           ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
