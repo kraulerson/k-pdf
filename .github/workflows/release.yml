@@ -194,32 +194,6 @@ jobs:
           codesign --verify --deep --strict "$APP"
           echo "Signature valid."
 
-      - name: Notarize macOS app
-        if: runner.os == 'macOS'
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          APP=build/main.app
-
-          # Create a zip for notarization submission
-          ditto -c -k --keepParent "$APP" build/main-notarize.zip
-
-          # Submit for notarization and wait
-          xcrun notarytool submit build/main-notarize.zip \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait \
-            --timeout 30m
-
-          # Staple the notarization ticket to the app
-          xcrun stapler staple "$APP"
-
-          echo "Notarization complete and stapled."
-          rm build/main-notarize.zip
-
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
         run: |
@@ -227,19 +201,42 @@ jobs:
           tar -czf "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz" main.dist/
           ls -lh "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz"
 
-      - name: Rename app bundle for distribution (macOS)
+      - name: Create DMG, sign, and notarize (macOS)
         if: runner.os == 'macOS'
-        run: mv build/main.app "build/K-PDF.app"
-
-      - name: Package artifact (macOS)
-        if: runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          cd build
+          IDENTITY="Developer ID Application: Karl Raulerson (M6M33BX75L)"
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Rename app bundle for distribution
+          mv build/main.app "build/K-PDF.app"
+
+          # Create the DMG
           hdiutil create -volname "K-PDF" \
-            -srcfolder "K-PDF.app" \
+            -srcfolder "build/K-PDF.app" \
             -ov -format UDZO \
-            "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
-          ls -lh "K-PDF-${{ steps.version.outputs.version }}-macos.dmg"
+            "build/K-PDF-${VERSION}-macos.dmg"
+
+          # Sign the DMG
+          codesign --force --sign "$IDENTITY" "build/K-PDF-${VERSION}-macos.dmg"
+          echo "DMG signed."
+
+          # Notarize the DMG (this is what Gatekeeper actually checks)
+          xcrun notarytool submit "build/K-PDF-${VERSION}-macos.dmg" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+
+          # Staple the notarization ticket to the DMG
+          xcrun stapler staple "build/K-PDF-${VERSION}-macos.dmg"
+
+          echo "DMG notarized and stapled."
+          ls -lh "build/K-PDF-${VERSION}-macos.dmg"
 
       - name: Package artifact (Windows)
         if: runner.os == 'Windows'
