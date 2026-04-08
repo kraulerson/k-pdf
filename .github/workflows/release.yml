@@ -191,9 +191,31 @@ jobs:
           codesign --verify --deep --strict "$APP"
           echo "Signature valid."
 
-      # Notarization skipped for now — Apple's servers consistently time out.
-      # The app is signed with Developer ID, so right-click > Open works.
-      # TODO: Re-enable notarization when Apple processing times improve.
+      - name: Notarize macOS app
+        if: runner.os == 'macOS'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP=build/main.app
+
+          # Create a zip for notarization submission
+          ditto -c -k --keepParent "$APP" build/main-notarize.zip
+
+          # Submit for notarization and wait
+          xcrun notarytool submit build/main-notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+
+          # Staple the notarization ticket to the app
+          xcrun stapler staple "$APP"
+
+          echo "Notarization complete and stapled."
+          rm build/main-notarize.zip
 
       - name: Package artifact (Linux)
         if: runner.os == 'Linux'
