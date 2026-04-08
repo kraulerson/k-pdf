@@ -18,6 +18,12 @@ class ToolMode(IntEnum):
     TEXT_SELECT = 1
     STICKY_NOTE = 2
     TEXT_BOX = 3
+    TEXT_EDIT = 5
+    FORM_TEXT = 10
+    FORM_CHECKBOX = 11
+    FORM_DROPDOWN = 12
+    FORM_RADIO = 13
+    FORM_SIGNATURE = 14
 
 
 class AnnotationType(Enum):

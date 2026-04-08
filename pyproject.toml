@@ -102,7 +102,7 @@ module = ["k_pdf.services.merge_engine"]
 disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
-module = ["k_pdf.core.event_bus", "k_pdf.core.theme_manager", "k_pdf.core.preferences_manager", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel", "k_pdf.views.merge_dialog", "k_pdf.views.annotation_panel", "k_pdf.views.keyboard_shortcuts_dialog", "k_pdf.views.preferences_dialog"]
+module = ["k_pdf.core.event_bus", "k_pdf.core.theme_manager", "k_pdf.core.preferences_manager", "k_pdf.views.pdf_viewport", "k_pdf.views.main_window", "k_pdf.views.navigation_panel", "k_pdf.views.search_bar", "k_pdf.views.zoom_toolbar", "k_pdf.views.annotation_toolbar", "k_pdf.views.note_editor", "k_pdf.views.page_manager_panel", "k_pdf.views.merge_dialog", "k_pdf.views.annotation_panel", "k_pdf.views.keyboard_shortcuts_dialog", "k_pdf.views.preferences_dialog", "k_pdf.views.form_field_popup", "k_pdf.views.form_properties_panel", "k_pdf.views.find_replace_bar"]
 disable_error_code = ["misc", "no-any-return", "unused-ignore"]
 
 [[tool.mypy.overrides]]
@@ -136,6 +136,18 @@ disable_error_code = ["misc"]
 [[tool.mypy.overrides]]
 module = ["k_pdf.presenters.annotation_summary_presenter"]
 disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["k_pdf.presenters.form_creation_presenter"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["k_pdf.presenters.text_edit_presenter"]
+disable_error_code = ["misc"]
+
+[[tool.mypy.overrides]]
+module = ["k_pdf.services.text_edit_engine"]
+disable_error_code = ["no-untyped-call"]
 
 [[tool.mypy.overrides]]
 module = ["k_pdf.core.thumbnail_cache"]

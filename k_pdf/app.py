@@ -9,13 +9,14 @@ from __future__ import annotations
 import contextlib
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from PySide6.QtCore import QPointF, QTimer
 from PySide6.QtPrintSupport import QPrintDialog, QPrinter
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from k_pdf.core.annotation_model import ToolMode
+from k_pdf.core.form_model import FormFieldType
 from k_pdf.core.preferences_manager import PreferencesManager
 from k_pdf.core.theme_manager import ThemeManager, ThemeMode
 from k_pdf.core.undo_manager import UndoManager
@@ -24,17 +25,21 @@ from k_pdf.persistence.recent_files import RecentFiles
 from k_pdf.persistence.settings_db import init_db
 from k_pdf.presenters.annotation_presenter import AnnotationPresenter
 from k_pdf.presenters.annotation_summary_presenter import AnnotationSummaryPresenter
+from k_pdf.presenters.form_creation_presenter import FormCreationPresenter
 from k_pdf.presenters.form_presenter import FormPresenter
 from k_pdf.presenters.navigation_presenter import NavigationPresenter
 from k_pdf.presenters.page_management_presenter import PageManagementPresenter
 from k_pdf.presenters.search_presenter import SearchPresenter
 from k_pdf.presenters.tab_manager import TabManager
+from k_pdf.presenters.text_edit_presenter import TextEditPresenter
 from k_pdf.services.annotation_engine import AnnotationEngine
 from k_pdf.services.form_engine import FormEngine
 from k_pdf.services.page_engine import PageEngine
 from k_pdf.services.pdf_engine import PdfEngine
 from k_pdf.services.print_service import PrintService
+from k_pdf.services.text_edit_engine import TextEditEngine
 from k_pdf.views.annotation_toolbar import AnnotationToolbar
+from k_pdf.views.form_field_popup import FormFieldPopup
 from k_pdf.views.main_window import MainWindow
 from k_pdf.views.note_editor import NoteEditor
 
@@ -83,6 +88,18 @@ class KPdfApp:
             tab_manager=self._tab_manager,
         )
         self._page_engine = PageEngine()
+        self._form_creation_presenter = FormCreationPresenter(
+            form_engine=self._form_engine,
+            tab_manager=self._tab_manager,
+        )
+        self._text_edit_engine = TextEditEngine()
+        self._text_edit_presenter = TextEditPresenter(
+            text_edit_engine=self._text_edit_engine,
+            tab_manager=self._tab_manager,
+        )
+        self._form_field_popup: FormFieldPopup | None = None
+        self._selected_widget: Any = None
+        self._selected_widget_page: int = 0
         self._page_management_presenter = PageManagementPresenter(
             page_engine=self._page_engine,
             tab_manager=self._tab_manager,
@@ -306,6 +323,65 @@ class KPdfApp:
         self._window.redo_requested.connect(self._on_redo)
         self._tab_manager.tab_switched.connect(self._on_tab_switched_undo)
         self._tab_manager.document_ready.connect(self._on_document_ready_undo)
+
+        # Form creation wiring
+        self._window.form_text_field_requested.connect(
+            lambda: self._activate_form_tool(ToolMode.FORM_TEXT)
+        )
+        self._window.form_checkbox_requested.connect(
+            lambda: self._activate_form_tool(ToolMode.FORM_CHECKBOX)
+        )
+        self._window.form_dropdown_requested.connect(
+            lambda: self._activate_form_tool(ToolMode.FORM_DROPDOWN)
+        )
+        self._window.form_radio_requested.connect(
+            lambda: self._activate_form_tool(ToolMode.FORM_RADIO)
+        )
+        self._window.form_signature_requested.connect(
+            lambda: self._activate_form_tool(ToolMode.FORM_SIGNATURE)
+        )
+        self._form_creation_presenter.tool_mode_changed.connect(self._on_form_tool_mode_changed)
+        self._form_creation_presenter.field_created.connect(self._on_form_field_changed)
+        self._form_creation_presenter.field_deleted.connect(self._on_form_field_changed)
+
+        # Form properties panel wiring
+        self._window.form_properties_panel.delete_requested.connect(
+            self._on_form_field_delete_from_panel
+        )
+        self._window.form_properties_panel.properties_changed.connect(
+            self._on_form_field_props_changed
+        )
+
+        # Document ready -> enable form creation tools
+        self._tab_manager.document_ready.connect(self._on_document_ready_form_creation)
+
+        # Text editing wiring
+        # Find-replace bar -> search (reuses SearchPresenter for finding)
+        find_replace = self._window.find_replace_bar
+        find_replace.search_requested.connect(
+            lambda q, cs, ww: self._search_presenter.start_search(
+                q, case_sensitive=cs, whole_word=ww
+            )
+        )
+        find_replace.next_requested.connect(self._search_presenter.next_match)
+        find_replace.previous_requested.connect(self._search_presenter.previous_match)
+        find_replace.closed.connect(self._search_presenter.close_search)
+        find_replace.replace_requested.connect(self._on_replace_current)
+        find_replace.replace_all_requested.connect(self._on_replace_all)
+
+        # SearchPresenter -> FindReplaceBar (match count updates)
+        self._search_presenter.matches_updated.connect(find_replace.set_match_count)
+        self._search_presenter.no_text_layer.connect(find_replace.set_no_text_layer)
+
+        # TextEditPresenter signals
+        self._text_edit_presenter.text_changed.connect(self._on_text_edit_changed)
+        self._text_edit_presenter.replace_status.connect(find_replace.set_status)
+
+        # Text edit mode from tools menu
+        self._window.text_edit_toggled.connect(self._on_text_edit_toggled)
+
+        # Document ready -> wire text edit double-click
+        self._tab_manager.document_ready.connect(self._on_document_ready_text_edit)
 
     def _on_document_ready_annotation_summary(self, session_id: str, model: object) -> None:
         """Wire annotation summary panel for a newly loaded document."""
@@ -570,6 +646,8 @@ class KPdfApp:
     def _on_tool_mode_changed(self, mode: int) -> None:
         """Update MainWindow tool menu check states when tool mode changes."""
         tool_mode = ToolMode(mode)
+        # Clear form creation mode when switching to a non-form tool
+        self._form_creation_presenter.set_tool_mode(ToolMode.NONE)
         # Block signals to avoid feedback loop
         self._window._text_select_action.blockSignals(True)
         self._window._sticky_note_action.blockSignals(True)
@@ -925,6 +1003,311 @@ class KPdfApp:
             can_redo=undo_mgr.can_redo,
             redo_text=redo_text,
         )
+
+    # --- Form creation handlers ---
+
+    def _activate_form_tool(self, mode: ToolMode) -> None:
+        """Activate a form field creation tool mode.
+
+        Unchecks any active tool in the action group and sets
+        the form creation presenter and viewport to the form mode.
+        """
+        # Uncheck all tools in the action group (Text Select, Sticky Note, etc.)
+        checked = self._window._tool_action_group.checkedAction()
+        if checked is not None:
+            checked.setChecked(False)
+
+        self._form_creation_presenter.set_tool_mode(mode)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(mode)
+
+    def _on_form_tool_mode_changed(self, mode_int: int) -> None:
+        """Update viewport tool mode for form field placement.
+
+        Only sets viewport mode for FORM_* modes (value >= 10).
+        When clearing to NONE, the viewport is left as-is because
+        another presenter may have just set it.
+        """
+        mode = ToolMode(mode_int)
+        if mode.value >= 10:  # Only set viewport for FORM_* modes
+            viewport = self._tab_manager.get_active_viewport()
+            if viewport is not None:
+                viewport.set_tool_mode(mode)
+
+    def _on_viewport_tool_reset(self) -> None:
+        """Handle Escape in viewport — reset all tool modes."""
+        self._form_creation_presenter.set_tool_mode(ToolMode.NONE)
+        self._text_edit_presenter.set_tool_mode(ToolMode.NONE)
+        # Uncheck tool action group
+        checked = self._window._tool_action_group.checkedAction()
+        if checked is not None:
+            checked.setChecked(False)
+
+    def _on_document_ready_form_creation(self, session_id: str, model: object) -> None:
+        """Enable form creation tools when a document loads."""
+        self._window.set_form_tools_enabled(True)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            # Avoid duplicate connections by disconnecting first
+            with contextlib.suppress(RuntimeError):
+                viewport.form_field_placed.disconnect(self._on_form_field_placed)
+            viewport.form_field_placed.connect(self._on_form_field_placed)
+            with contextlib.suppress(RuntimeError):
+                viewport.tool_mode_reset.disconnect(self._on_viewport_tool_reset)
+            viewport.tool_mode_reset.connect(self._on_viewport_tool_reset)
+
+    def _on_form_field_placed(
+        self, page_index: int, point: tuple[float, float], tool_mode_int: int
+    ) -> None:
+        """Handle click-to-place from viewport — show popup or select existing field."""
+        field_type = self._form_creation_presenter.pending_field_type
+        if field_type is None:
+            return
+
+        # Check if clicking on an existing field — select it instead of creating
+        doc_presenter = self._tab_manager.get_active_presenter()
+        if doc_presenter is not None and doc_presenter.model is not None:
+            existing = self._form_engine.get_widget_at(
+                doc_presenter.model.doc_handle, page_index, point[0], point[1]
+            )
+            if existing is not None:
+                self._select_form_field(page_index, existing)
+                return
+
+        # Create and show popup
+        self._form_field_popup = FormFieldPopup(field_type)
+        self._form_field_popup.create_requested.connect(
+            lambda props: self._on_popup_create(page_index, point, field_type, props)
+        )
+        self._form_field_popup.more_requested.connect(
+            lambda props: self._on_popup_more(page_index, point, field_type, props)
+        )
+        self._form_field_popup.cancel_requested.connect(self._on_popup_cancel)
+
+        # Position near click point
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            global_pos = viewport.mapToGlobal(viewport.rect().center())
+            self._form_field_popup.show_near(global_pos.x(), global_pos.y())
+
+    def _select_form_field(self, page_index: int, widget: Any) -> None:
+        """Select an existing form field and show its properties."""
+        ft = self._form_engine.widget_type_to_field_type(widget.field_type)
+        props: dict[str, Any] = {
+            "name": widget.field_name,
+            "field_type": ft or FormFieldType.TEXT,
+            "page": page_index,
+            "rect": (widget.rect.x0, widget.rect.y0, widget.rect.x1, widget.rect.y1),
+        }
+        self._window.form_properties_panel.load_properties(props)
+        self._window.form_properties_panel.show()
+        self._selected_widget = widget
+        self._selected_widget_page = page_index
+
+    def _on_popup_create(
+        self,
+        page_index: int,
+        point: tuple[float, float],
+        field_type: FormFieldType,
+        props: dict[str, object],
+    ) -> None:
+        """Handle Create from FormFieldPopup."""
+        self._form_creation_presenter.create_field(page_index, point, field_type, props)
+
+    def _on_popup_more(
+        self,
+        page_index: int,
+        point: tuple[float, float],
+        field_type: FormFieldType,
+        props: dict[str, object],
+    ) -> None:
+        """Handle More... from FormFieldPopup — create field and open properties panel."""
+        self._form_creation_presenter.create_field(page_index, point, field_type, props)
+        props["field_type"] = field_type
+        props["page"] = page_index
+        self._window.form_properties_panel.load_properties(props)
+        self._window.form_properties_panel.show()
+
+    def _on_popup_cancel(self) -> None:
+        """Handle Cancel from FormFieldPopup — tool mode stays active."""
+
+    def _on_form_field_changed(self) -> None:
+        """Re-render viewport after form field create/delete."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
+
+    def _on_form_field_delete_from_panel(self) -> None:
+        """Handle Delete button from FormPropertiesPanel."""
+        if self._selected_widget is not None:
+            self._form_creation_presenter.delete_field(
+                self._selected_widget_page, self._selected_widget
+            )
+            self._selected_widget = None
+            self._selected_widget_page = 0
+        self._window.form_properties_panel.clear()
+
+    def _on_form_field_props_changed(self, props: dict[str, object]) -> None:
+        """Handle property changes from FormPropertiesPanel."""
+        if self._selected_widget is None:
+            return
+        self._form_creation_presenter.update_field_properties(
+            self._selected_widget_page, self._selected_widget, props
+        )
+        # Re-render to show changes
+        self._on_form_field_changed()
+
+    # --- Text editing handlers ---
+
+    def _on_text_edit_toggled(self, checked: bool) -> None:
+        """Handle Edit Text tool toggle."""
+        if checked:
+            self._text_edit_presenter.set_tool_mode(ToolMode.TEXT_EDIT)
+        else:
+            self._text_edit_presenter.set_tool_mode(ToolMode.NONE)
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            viewport.set_tool_mode(ToolMode.TEXT_EDIT if checked else ToolMode.NONE)
+
+    def _on_document_ready_text_edit(self, session_id: str, model: object) -> None:
+        """Wire text edit signals when a document loads."""
+        viewport = self._tab_manager.get_active_viewport()
+        if viewport is not None:
+            with contextlib.suppress(RuntimeError):
+                viewport.text_edit_requested.disconnect(self._on_text_edit_requested)
+            viewport.text_edit_requested.connect(self._on_text_edit_requested)
+
+    def _on_text_edit_requested(self, page_index: int, pdf_x: float, pdf_y: float) -> None:
+        """Handle double-click in text edit mode — show inline edit overlay."""
+        block = self._text_edit_presenter.get_text_block_at(page_index, pdf_x, pdf_y)
+        if block is None:
+            return  # No text at this position — no-op per spec
+
+        # Show font limitation dialog if subset font
+        if not block.is_fully_embedded:
+            reply = QMessageBox.warning(
+                self._window,
+                "Cannot Edit Text Directly",
+                f"This text uses a subset font ({block.font_name}) that only "
+                "contains the original characters. Direct editing is not possible.\n\n"
+                "Redact the original text and overlay new text using a standard "
+                "font (Helvetica). The result will look similar but use a different font.",
+                QMessageBox.StandardButton.Cancel | QMessageBox.StandardButton.Ok,
+                QMessageBox.StandardButton.Cancel,
+            )
+            if reply != QMessageBox.StandardButton.Ok:
+                return
+            # Will use redact_and_overlay path below
+
+        # For now, use a simple QInputDialog for inline editing
+        # A full floating overlay (like NoteEditor) can be added as a refinement
+        from PySide6.QtWidgets import QInputDialog
+
+        new_text, ok = QInputDialog.getText(
+            self._window,
+            "Edit Text",
+            f"Editing text (font: {block.font_name})",
+            text=block.text,
+        )
+        if not ok or new_text == block.text:
+            return
+
+        # Warn if replacement is significantly longer than original
+        if len(new_text) > len(block.text) * 1.5:
+            reply = QMessageBox.question(
+                self._window,
+                "Replacement May Overflow",
+                "Replacement text may extend beyond the original area. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        if block.is_fully_embedded:
+            result = self._text_edit_presenter.edit_inline(
+                page_index, block.rect, block.text, new_text
+            )
+            if not result.success:
+                QMessageBox.warning(
+                    self._window,
+                    "Edit Failed",
+                    result.error_message,
+                )
+        else:
+            self._text_edit_presenter.redact_and_overlay(
+                page_index, block.rect, new_text, block.font_size
+            )
+
+    def _on_replace_current(self, replacement_text: str) -> None:
+        """Handle Replace button from FindReplaceBar."""
+        # Get current match from SearchPresenter
+        sid = self._search_presenter._active_session_id
+        if sid is None or sid not in self._search_presenter._results:
+            return
+
+        result = self._search_presenter._results[sid]
+        rect = result.current_rect()
+        if rect is None:
+            return
+
+        # Warn if replacement is significantly longer than original
+        if len(replacement_text) > len(result.query) * 1.5:
+            reply = QMessageBox.question(
+                self._window,
+                "Replacement May Overflow",
+                "Replacement text may extend beyond the original area. Continue?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.Yes,
+            )
+            if reply != QMessageBox.StandardButton.Yes:
+                return
+
+        self._text_edit_presenter.replace_current(
+            result.current_page,
+            rect,
+            result.query,
+            replacement_text,
+        )
+        # Advance to next match
+        self._search_presenter.next_match()
+
+    def _on_replace_all(self, replacement_text: str) -> None:
+        """Handle Replace All button from FindReplaceBar."""
+        sid = self._search_presenter._active_session_id
+        if sid is None or sid not in self._search_presenter._results:
+            return
+
+        search_result = self._search_presenter._results[sid]
+        if not search_result.matches:
+            return
+
+        result = self._text_edit_presenter.replace_all(
+            search_result.matches,
+            search_result.query,
+            replacement_text,
+        )
+
+        if result is not None and result.replaced_count > 0:
+            # Clear search results since text has changed
+            self._search_presenter.close_search()
+
+    def _on_text_edit_changed(self) -> None:
+        """Re-render viewport after text edit."""
+        presenter = self._tab_manager.get_active_presenter()
+        viewport = self._tab_manager.get_active_viewport()
+        if presenter is not None and viewport is not None:
+            presenter.cache.invalidate()
+            presenter._pending_renders.clear()
+            first, last = viewport.get_visible_page_range()
+            if first >= 0:
+                presenter.request_pages(list(range(first, last + 1)))
 
     def shutdown(self) -> None:
         """Clean up resources before exit."""

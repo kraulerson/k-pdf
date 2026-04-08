@@ -17,6 +17,7 @@ class FormFieldType(Enum):
     CHECKBOX = "checkbox"
     DROPDOWN = "dropdown"
     RADIO = "radio"
+    SIGNATURE = "signature"
 
 
 @dataclass(frozen=True)

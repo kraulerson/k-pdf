@@ -17,6 +17,7 @@ from PySide6.QtGui import (
     QColor,
     QFont,
     QImage,
+    QKeyEvent,
     QMouseEvent,
     QPen,
     QPixmap,
@@ -68,6 +69,9 @@ class PdfViewport(QGraphicsView):
     note_placed = Signal(int, tuple)  # (page_index, (x, y))
     textbox_drawn = Signal(int, tuple)  # (page_index, (x0, y0, x1, y1))
     annotation_double_clicked = Signal(int, object)  # (page_index, annot)
+    form_field_placed = Signal(int, tuple, int)  # (page_index, (x, y), tool_mode_int)
+    text_edit_requested = Signal(int, float, float)  # (page_index, pdf_x, pdf_y)
+    tool_mode_reset = Signal()  # Emitted when Escape resets tool mode
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Initialize the PDF viewport with an empty scene."""
@@ -415,10 +419,11 @@ class PdfViewport(QGraphicsView):
             self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
             self.unsetCursor()
             self.clear_selection_overlay()
-        elif mode is ToolMode.TEXT_SELECT:
+        elif mode is ToolMode.TEXT_SELECT or mode is ToolMode.TEXT_EDIT:
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.IBeamCursor)
-        elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX):
+        elif mode in (ToolMode.STICKY_NOTE, ToolMode.TEXT_BOX) or mode.value >= 10:
+            # STICKY_NOTE, TEXT_BOX, and all FORM_* modes use cross cursor
             self.setDragMode(QGraphicsView.DragMode.NoDrag)
             self.setCursor(Qt.CursorShape.CrossCursor)
 
@@ -553,6 +558,10 @@ class PdfViewport(QGraphicsView):
                 self._textbox_drag_start = self.mapToScene(event.pos())
                 event.accept()
                 return
+            if self._tool_mode.value >= 10:  # FORM_* modes
+                self._handle_form_field_click(event)
+                event.accept()
+                return
         if event.button() == Qt.MouseButton.RightButton:
             self._show_annotation_context_menu(event)
             event.accept()
@@ -609,7 +618,12 @@ class PdfViewport(QGraphicsView):
         When a tool mode is active (STICKY_NOTE, TEXT_BOX, TEXT_SELECT) the
         event is always consumed so the default QGraphicsView double-click
         handler never fires and cannot cause crashes.
+        In TEXT_EDIT mode, a double-click emits text_edit_requested.
         """
+        if event.button() == Qt.MouseButton.LeftButton and self._tool_mode is ToolMode.TEXT_EDIT:
+            self._handle_text_edit_double_click(event)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton:
             scene_pos = self.mapToScene(event.pos())
             annot = self._hit_test_annotation(scene_pos)
@@ -625,6 +639,16 @@ class PdfViewport(QGraphicsView):
                 event.accept()
                 return
         super().mouseDoubleClickEvent(event)
+
+    @override
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        """Handle key presses — Escape resets tool mode."""
+        if event.key() == Qt.Key.Key_Escape and self._tool_mode is not ToolMode.NONE:
+            self.set_tool_mode(ToolMode.NONE)
+            self.tool_mode_reset.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
     def _handle_sticky_note_click(self, event: QMouseEvent) -> None:
         """Handle click in sticky note mode — emit note_placed signal."""
@@ -646,6 +670,46 @@ class PdfViewport(QGraphicsView):
         pdf_y = max(0.0, min(pdf_y, page_info.height))
 
         self.note_placed.emit(page_index, (pdf_x, pdf_y))
+
+    def _handle_form_field_click(self, event: QMouseEvent) -> None:
+        """Handle click in form field placement mode — emit form_field_placed."""
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+
+        # Snap to page bounds
+        pdf_x = max(0.0, min(pdf_x, page_info.width))
+        pdf_y = max(0.0, min(pdf_y, page_info.height))
+
+        self.form_field_placed.emit(page_index, (pdf_x, pdf_y), int(self._tool_mode))
+
+    def _handle_text_edit_double_click(self, event: QMouseEvent) -> None:
+        """Handle double-click in text edit mode — emit text_edit_requested."""
+        scene_pos = self.mapToScene(event.pos())
+        page_index = self._page_at_scene_pos(scene_pos)
+        if page_index < 0:
+            return
+
+        page_info = self._pages[page_index]
+        item = self._page_items.get(page_index)
+        if item is None:
+            return
+        zoom = item.boundingRect().width() / page_info.width if page_info.width else 1.0
+
+        pdf_x, pdf_y = self._scene_to_pdf_coords(scene_pos, page_index, zoom)
+        pdf_x = max(0.0, min(pdf_x, page_info.width))
+        pdf_y = max(0.0, min(pdf_y, page_info.height))
+
+        self.text_edit_requested.emit(page_index, pdf_x, pdf_y)
 
     def _update_textbox_preview(self, start: QPointF, current: QPointF) -> None:
         """Draw a preview rectangle during text box drag."""
