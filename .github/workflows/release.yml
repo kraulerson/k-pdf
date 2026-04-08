@@ -201,6 +201,10 @@ jobs:
           tar -czf "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz" main.dist/
           ls -lh "K-PDF-${{ steps.version.outputs.version }}-linux.tar.gz"
 
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
+
       - name: Create DMG, sign, and notarize (macOS)
         if: runner.os == 'macOS'
         env:
@@ -214,28 +218,22 @@ jobs:
           # Rename app bundle for distribution
           mv build/main.app "build/K-PDF.app"
 
-          # Create the DMG
-          hdiutil create -volname "K-PDF" \
-            -srcfolder "build/K-PDF.app" \
-            -ov -format UDZO \
-            "build/K-PDF-${VERSION}-macos.dmg"
+          # Create polished DMG with drag-to-Applications layout
+          create-dmg \
+            --volname "K-PDF" \
+            --volicon "k_pdf/resources/icons/k-pdf-icon.icns" \
+            --window-pos 200 120 \
+            --window-size 600 400 \
+            --icon-size 100 \
+            --icon "K-PDF.app" 150 190 \
+            --hide-extension "K-PDF.app" \
+            --app-drop-link 450 190 \
+            --codesign "$IDENTITY" \
+            --notarize "$APPLE_ID" "$APPLE_APP_PASSWORD" "$APPLE_TEAM_ID" \
+            "build/K-PDF-${VERSION}-macos.dmg" \
+            "build/K-PDF.app"
 
-          # Sign the DMG
-          codesign --force --sign "$IDENTITY" "build/K-PDF-${VERSION}-macos.dmg"
-          echo "DMG signed."
-
-          # Notarize the DMG (this is what Gatekeeper actually checks)
-          xcrun notarytool submit "build/K-PDF-${VERSION}-macos.dmg" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait \
-            --timeout 30m
-
-          # Staple the notarization ticket to the DMG
-          xcrun stapler staple "build/K-PDF-${VERSION}-macos.dmg"
-
-          echo "DMG notarized and stapled."
+          echo "DMG created, signed, and notarized."
           ls -lh "build/K-PDF-${VERSION}-macos.dmg"
 
       - name: Package artifact (Windows)
